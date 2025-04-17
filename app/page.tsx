@@ -6,6 +6,7 @@ import { tools } from "@/lib/tools"
 import { BroadcastButton } from "@/components/broadcast-button"
 import { DocumentUpload } from "@/components/document-upload"
 import { AISpeechIndicator } from "@/components/ai-speech-indicator"
+import { JobDescription, JobDetails } from "@/components/job-description"
 
 const App: React.FC = () => {
   // AI speaking state
@@ -16,17 +17,72 @@ const App: React.FC = () => {
     isSessionActive,
     handleStartStopClick,
     currentVolume,
+    startSession,
+    sendTextMessage,
   } = useWebRTCAudioSession("ash", tools)
 
   // Determine if AI is speaking based on volume
   React.useEffect(() => {
     setAiSpeaking(currentVolume > 0.01 && isSessionActive)
   }, [currentVolume, isSessionActive])
+  
+  // Custom handler for starting session with resume and job data
+  const handleStartInterview = async () => {
+    // First start the WebRTC session
+    await startSession()
+    
+    // Different scenarios based on what data we have
+    if (resumeData && jobData) {
+      // Both resume and job data available - ideal scenario
+      const contextMessage = `
+I'm applying for a ${jobData.jobTitle} position at ${jobData.companyName}.
+Here's my resume information: ${JSON.stringify(resumeData, null, 2)}
+
+Here's the job description:
+${jobData.jobDescription}
+
+Based on my resume and this job description, please conduct an interview with me focusing on relevant skills and experience.
+`
+      // Send the context message to the AI
+      setTimeout(() => {
+        sendTextMessage(contextMessage)
+      }, 1000) // Small delay to ensure session is fully established
+    } 
+    else if (resumeData) {
+      // Only resume data available
+      const contextMessage = `
+Here's my resume information: ${JSON.stringify(resumeData, null, 2)}
+
+Based on my resume, please conduct a general interview with me focusing on my skills and experience.
+`
+      setTimeout(() => {
+        sendTextMessage(contextMessage)
+      }, 1000)
+    }
+    else if (jobData) {
+      // Only job data available
+      const contextMessage = `
+I'm applying for a ${jobData.jobTitle} position at ${jobData.companyName}.
+
+Here's the job description:
+${jobData.jobDescription}
+
+Based on this job description, please conduct an interview with me focusing on skills needed for this role.
+`
+      setTimeout(() => {
+        sendTextMessage(contextMessage)
+      }, 1000)
+    }
+    // If no data is available, just start a general interview (no context needed)
+  }
 
   // State for resume data
   const [resumeData, setResumeData] = useState<Record<string, unknown> | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingError, setProcessingError] = useState<string | null>(null)
+  
+  // State for job details
+  const [jobData, setJobData] = useState<JobDetails | null>(null)
   
   // Handle file upload
   const handleFileUpload = async (file: File) => {
@@ -62,6 +118,15 @@ const App: React.FC = () => {
       setProcessingError("An error occurred during upload")
       setIsProcessing(false)
     }
+  }
+  
+  // Handle job details submission  
+  const handleJobSubmit = (details: JobDetails) => {
+    console.log("Job details submitted:", details)
+    setJobData(details)
+    
+    // Here you would typically send the job data to your backend
+    // or store it for later use with the interviewer model
   }
   
   // Poll for results with backoff strategy
@@ -130,8 +195,11 @@ const App: React.FC = () => {
           </div>
           
           {/* Content area */}
-          <div className={`h-[calc(100%-2.25rem)] ${bgStyle} p-4`}>
-            {/* Empty for now */}
+          <div className={`h-[calc(100%-2.25rem)] ${bgStyle}`}>
+            <JobDescription 
+              onSubmit={handleJobSubmit} 
+              isSubmitted={jobData !== null}
+            />
           </div>
         </div>
         
@@ -185,7 +253,7 @@ const App: React.FC = () => {
             <div className="p-4 border-b border-indigo-100 dark:border-indigo-900/50">
               <BroadcastButton 
                 isSessionActive={isSessionActive} 
-                onClick={handleStartStopClick}
+                onClick={isSessionActive ? handleStartStopClick : handleStartInterview}
               />
             </div>
             
