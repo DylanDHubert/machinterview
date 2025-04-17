@@ -5,9 +5,12 @@ import { FileText, X, File, Check } from 'lucide-react'
 
 interface DocumentUploadProps {
   onUpload?: (file: File) => void
+  isProcessing?: boolean
+  processingError?: string | null
+  resumeData?: Record<string, unknown> | null
 }
 
-export function DocumentUpload({ onUpload }: DocumentUploadProps) {
+export function DocumentUpload({ onUpload, isProcessing = false, processingError = null, resumeData = null }: DocumentUploadProps) {
   const [dragActive, setDragActive] = useState(false)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -161,20 +164,64 @@ export function DocumentUpload({ onUpload }: DocumentUploadProps) {
           </div>
           
           {/* Status */}
-          <div className="bg-green-50 dark:bg-green-900/10 rounded-lg p-2.5 border border-green-100 dark:border-green-900/30">
-            <div className="flex items-center mb-0.5">
-              <div className="p-0.5 rounded-full bg-green-200 dark:bg-green-700 mr-1.5">
-                <Check className="h-3 w-3 text-green-700 dark:text-green-300" />
+          {isProcessing ? (
+            <div className="bg-blue-50 dark:bg-blue-900/10 rounded-lg p-2.5 border border-blue-100 dark:border-blue-900/30">
+              <div className="flex items-center mb-0.5">
+                <div className="p-0.5 mr-1.5">
+                  <div className="h-3 w-3 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse"></div>
+                </div>
+                <p className="text-xs font-medium text-blue-800 dark:text-blue-300">
+                  Processing resume...
+                </p>
               </div>
-              <p className="text-xs font-medium text-green-800 dark:text-green-300">
-                Resume ready for analysis
+              <p className="text-[10px] text-gray-600 dark:text-gray-400 ml-4">
+                This may take up to a minute. Please wait while we analyze your resume.
               </p>
             </div>
-            <ul className="text-[10px] text-gray-600 dark:text-gray-400 ml-4 list-disc">
-              <li className="mb-0.5">File will be processed to extract skills and experience</li>
-              <li>Personalized interview questions will be generated</li>
-            </ul>
-          </div>
+          ) : processingError ? (
+            <div className="bg-red-50 dark:bg-red-900/10 rounded-lg p-2.5 border border-red-100 dark:border-red-900/30">
+              <div className="flex items-center mb-0.5">
+                <div className="p-0.5 rounded-full bg-red-200 dark:bg-red-700 mr-1.5">
+                  <X className="h-3 w-3 text-red-700 dark:text-red-300" />
+                </div>
+                <p className="text-xs font-medium text-red-800 dark:text-red-300">
+                  Error processing resume
+                </p>
+              </div>
+              <p className="text-[10px] text-gray-600 dark:text-gray-400 ml-4">
+                {processingError}. Please try again.
+              </p>
+            </div>
+          ) : resumeData ? (
+            <div className="bg-green-50 dark:bg-green-900/10 rounded-lg p-2.5 border border-green-100 dark:border-green-900/30">
+              <div className="flex items-center mb-0.5">
+                <div className="p-0.5 rounded-full bg-green-200 dark:bg-green-700 mr-1.5">
+                  <Check className="h-3 w-3 text-green-700 dark:text-green-300" />
+                </div>
+                <p className="text-xs font-medium text-green-800 dark:text-green-300">
+                  Resume processed successfully
+                </p>
+              </div>
+              <p className="text-[10px] text-gray-600 dark:text-gray-400 ml-4">
+                Your resume has been analyzed and is ready for interview preparation.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-green-50 dark:bg-green-900/10 rounded-lg p-2.5 border border-green-100 dark:border-green-900/30">
+              <div className="flex items-center mb-0.5">
+                <div className="p-0.5 rounded-full bg-green-200 dark:bg-green-700 mr-1.5">
+                  <Check className="h-3 w-3 text-green-700 dark:text-green-300" />
+                </div>
+                <p className="text-xs font-medium text-green-800 dark:text-green-300">
+                  Resume ready for analysis
+                </p>
+              </div>
+              <ul className="text-[10px] text-gray-600 dark:text-gray-400 ml-4 list-disc">
+                <li className="mb-0.5">File will be processed to extract skills and experience</li>
+                <li>Personalized interview questions will be generated</li>
+              </ul>
+            </div>
+          )}
         </div>
       )}
       

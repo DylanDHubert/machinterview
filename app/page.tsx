@@ -23,9 +23,16 @@ const App: React.FC = () => {
     setAiSpeaking(currentVolume > 0.01 && isSessionActive)
   }, [currentVolume, isSessionActive])
 
+  // State for resume data
+  const [resumeData, setResumeData] = useState<Record<string, unknown> | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [processingError, setProcessingError] = useState<string | null>(null)
+  
   // Handle file upload
   const handleFileUpload = async (file: File) => {
     console.log("Resume uploaded:", file.name)
+    setIsProcessing(true)
+    setProcessingError(null)
     
     try {
       // Create FormData and append the file
@@ -40,16 +47,71 @@ const App: React.FC = () => {
       })
       
       const result = await response.json()
-      console.log("API response:", result)
+      console.log("Upload API response:", result)
       
-      if (result.success) {
-        console.log("PDF processed successfully")
+      if (result.success && result.threadId && result.runId) {
+        console.log("PDF upload successful, starting polling...")
+        pollForResults(result.threadId, result.runId)
       } else {
-        console.error("PDF processing failed:", result.error)
+        console.error("PDF upload failed:", result.error)
+        setProcessingError(result.error || "Upload failed")
+        setIsProcessing(false)
       }
     } catch (error) {
       console.error("Error uploading PDF:", error)
+      setProcessingError("An error occurred during upload")
+      setIsProcessing(false)
     }
+  }
+  
+  // Poll for results with backoff strategy
+  const pollForResults = async (threadId: string, runId: string) => {
+    let pollCount = 0
+    const maxPolls = 30 // Maximum number of polling attempts
+    const baseInterval = 2000 // Start with 2 seconds
+    const maxInterval = 10000 // Max 10 seconds between polls
+    
+    const poll = async () => {
+      if (pollCount >= maxPolls) {
+        console.error("Polling timeout - max attempts reached")
+        setProcessingError("Processing timeout - please try again")
+        setIsProcessing(false)
+        return
+      }
+      
+      // Calculate backoff interval (increases with each poll)
+      const interval = Math.min(baseInterval * Math.pow(1.2, pollCount), maxInterval)
+      pollCount++
+      
+      try {
+        const response = await fetch(`/api/check-run?threadId=${threadId}&runId=${runId}`)
+        const result = await response.json()
+        console.log(`Poll ${pollCount} result:`, result)
+        
+        if (result.success) {
+          if (result.done) {
+            console.log("Processing complete!")
+            setResumeData(result.parsed)
+            setIsProcessing(false)
+            return
+          } else {
+            console.log(`Still processing (status: ${result.status}), polling again in ${interval}ms...`)
+            setTimeout(poll, interval)
+          }
+        } else {
+          console.error("Error in polling:", result.error)
+          setProcessingError(result.error || "Processing failed")
+          setIsProcessing(false)
+        }
+      } catch (error) {
+        console.error("Error polling for results:", error)
+        setProcessingError("Error checking processing status")
+        setIsProcessing(false)
+      }
+    }
+    
+    // Start polling
+    poll()
   }
 
   // Common background style for all sections
@@ -83,7 +145,12 @@ const App: React.FC = () => {
           
           {/* Content area */}
           <div className={`h-[calc(100%-2.25rem)] ${bgStyle}`}>
-            <DocumentUpload onUpload={handleFileUpload} />
+            <DocumentUpload 
+              onUpload={handleFileUpload} 
+              isProcessing={isProcessing}
+              processingError={processingError}
+              resumeData={resumeData}
+            />
           </div>
         </div>
       </div>
