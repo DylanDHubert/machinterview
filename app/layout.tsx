@@ -49,9 +49,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TranslationsProvider>
-            <div className="relative flex min-h-dvh flex-col bg-background items-center">
+            <div className="flex flex-col min-h-dvh w-full bg-background">
               <Header />
-              <main className="flex flex-1 justify-center items-start">
+              <main className="flex-1 w-full">
                 {children}
               </main>
             </div>

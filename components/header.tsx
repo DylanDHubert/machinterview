@@ -23,10 +23,11 @@ export function Header() {
         >
           <Link href="/" className="flex gap-3 items-center">
             <motion.h1 
-              className="text-lg font-medium tracking-tighter flex gap-1 items-center"
-              whileHover={{ scale: 1.02 }}
+              className="text-lg font-medium tracking-tighter flex gap-1 items-center relative"
             >
-              {t('header.logo')}
+              <span className="bg-gradient-to-r from-blue-600 via-indigo-500 to-blue-600 dark:from-blue-400 dark:via-indigo-300 dark:to-blue-400 bg-[length:200%_auto] animate-shimmer bg-clip-text text-transparent">
+                Mach Interview
+              </span>
             </motion.h1>
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
@@ -39,6 +40,15 @@ export function Header() {
             </motion.div>
           </Link>
         </motion.nav>
+        
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="text-xs text-gray-500 dark:text-gray-400 italic"
+        >
+          by Dylan Hubert & Luke Heitman
+        </motion.div>
       </div>
     </motion.header>
   );
