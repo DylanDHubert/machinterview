@@ -24,17 +24,32 @@ const App: React.FC = () => {
   }, [currentVolume, isSessionActive])
 
   // Handle file upload
-  const handleFileUpload = (file: File) => {
-    // This is where you would send the file to the backend
+  const handleFileUpload = async (file: File) => {
     console.log("Resume uploaded:", file.name)
     
-    // Example API call (implementation needed by collaborator)
-    // const formData = new FormData()
-    // formData.append('file', file)
-    // fetch('/api/upload-pdf', {
-    //   method: 'POST',
-    //   body: formData
-    // })
+    try {
+      // Create FormData and append the file
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      // Send the file to our API endpoint
+      console.log("Sending file to API...")
+      const response = await fetch('/api/upload-pdf', {
+        method: 'POST',
+        body: formData
+      })
+      
+      const result = await response.json()
+      console.log("API response:", result)
+      
+      if (result.success) {
+        console.log("PDF processed successfully")
+      } else {
+        console.error("PDF processing failed:", result.error)
+      }
+    } catch (error) {
+      console.error("Error uploading PDF:", error)
+    }
   }
 
   // Common background style for all sections
