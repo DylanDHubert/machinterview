@@ -14,6 +14,9 @@ import { NextRequest, NextResponse } from 'next/server'
  * @param request The incoming request containing the PDF file
  */
 export async function POST(request: NextRequest) {
+  // Log request method for debugging
+  console.log(`Received ${request.method} request`);
+  
   // IMPLEMENTATION NEEDED
   // This is a placeholder response
   return NextResponse.json(

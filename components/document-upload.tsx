@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef } from 'react'
-import { UploadCloud, FileText, X, Upload, File, Check } from 'lucide-react'
+import { FileText, X, File, Check } from 'lucide-react'
 
 interface DocumentUploadProps {
   onUpload?: (file: File) => void
@@ -99,7 +99,7 @@ export function DocumentUpload({ onUpload }: DocumentUploadProps) {
     <div className="h-full w-full flex flex-col justify-center p-4">
       {!uploadedFile ? (
         <div 
-          className={`w-full h-full border-2 border-dashed rounded-lg flex flex-col items-center justify-center p-4 transition-all ${
+          className={`w-full h-full border-1-px border-solid rounded-lg flex flex-col items-center justify-center p-4 transition-all ${
             dragActive 
               ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 shadow-lg scale-102" 
               : "border-indigo-300 dark:border-indigo-700 bg-white/30 dark:bg-gray-800/20 shadow-md"

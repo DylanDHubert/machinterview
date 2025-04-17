@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Mic, MicOff } from 'lucide-react'
+import { MicOff } from 'lucide-react'
 
 interface AISpeechIndicatorProps {
   isSpeaking: boolean

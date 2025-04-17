@@ -6,7 +6,6 @@ import { tools } from "@/lib/tools"
 import { BroadcastButton } from "@/components/broadcast-button"
 import { DocumentUpload } from "@/components/document-upload"
 import { AISpeechIndicator } from "@/components/ai-speech-indicator"
-import { motion } from "framer-motion"
 
 const App: React.FC = () => {
   // AI speaking state
