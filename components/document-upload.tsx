@@ -224,16 +224,6 @@ export function DocumentUpload({ onUpload, isProcessing = false, processingError
           )}
         </div>
       )}
-      
-      {/* Developer note - only show during development */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="absolute bottom-4 left-4 right-4 px-3 py-2 bg-amber-100 dark:bg-amber-900/30 rounded-md text-xs max-w-md">
-          <p className="font-medium text-amber-800 dark:text-amber-200">Developer Note:</p>
-          <p className="text-amber-700 dark:text-amber-300 mt-0.5">
-            Implement API endpoint at <code className="bg-amber-200 dark:bg-amber-800/50 px-1 py-0.5 rounded">/api/upload-pdf</code> to handle the resume upload.
-          </p>
-        </div>
-      )}
     </div>
   )
 } 

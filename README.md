@@ -1,75 +1,188 @@
-# OpenAI WebRTC Shadcn Next15 Starter
-This is a WebRTC-based Voice AI stream application using `OpenAI`'s `Realtime API` and `WebRTC`. Project contains `/api` route and UI components developed with `Next.js` and `shadcn/ui`. It supports real-time audio conversations implented in [skrivov/openai-voice-webrtc-next](https://github.com/skrivov/openai-voice-webrtc-next) with the addition of a hook to abstract the WebRTC handling.
+# Mach Interview
 
-https://github.com/user-attachments/assets/ea9324af-5c18-48d2-b980-2b81baeea4c0
+Mach Interview is an AI-powered interview preparation and simulation platform that helps job seekers practice technical interviews with an AI assistant. The application analyzes resumes, processes job descriptions, and generates personalized interview questions based on your background and target position.
 
-## Features
-- **Next.js Framework**: Built with Next.js for server-side rendering and API routes.
-- **Modern UI**: Animated using Tailwind CSS & Framer Motion & shadcn/ui.
-- **Use-WebRTC Hook**: A hook to abstract the OpenAI WebRTC handling.
-- **Tool Calling**: 6 example functions to demonstrate client side tools along with Realtime API: `getCurrentTime`, `partyMode`, `changeBackground`, `launchWebsite`, `copyToClipboard`, `scrapeWebsite` (requires FireCrawl API key)
-- **Localization**: Select language for app strings and the voice agent (English, Spanish, French, Chinese)
-- **Type Safety**: TypeScript with strict eslint rules (optional)
+![Mach Interview](https://github.com/DylanDHubert/machinterview/raw/main/public/demo-screenshot.png)
 
-  
-## Requirements
-- **Deno runtime** or **Node.js**
-- OpenAI API Key or Azure OpenAI API Key in `.env` file
+## Architecture Overview
 
-## Installation
+The application is built as a modern web application with a Next.js frontend and serverless backend architecture:
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/cameronking4/openai-realtime-api-nextjs.git
-cd openai-realtime-api-nextjs
+```
+├── Frontend (Next.js)
+│   ├── Main UI Components
+│   │   ├── Document Upload (Resume)
+│   │   ├── Job Description Form
+│   │   ├── Real-time AI Interaction
+│   │   └── Audio/Visual Indicators
+│   └── Custom Hooks
+│       └── WebRTC Audio Session Management
+│
+├── Backend (Next.js API Routes)
+│   ├── /api/upload-pdf
+│   └── /api/check-run
+│
+└── AI Integration
+    ├── OpenAI Assistants API (Resume Analysis)
+    └── OpenAI WebRTC Realtime API (Interview Simulation)
 ```
 
-### 2. Environment Setup
-Create a `.env` file in the root directory:
-```env
+## Key Features
+
+- **Resume Analysis**: Upload and extract key information from your PDF resume using OpenAI's document understanding capabilities
+- **Job Description Processing**: Input job details to tailor the interview experience to specific positions
+- **Real-time AI Interview**: Conduct a natural interview conversation with AI using WebRTC audio streaming
+- **Dynamic Context Integration**: The AI assistant adapts questions based on your resume and target job
+- **Visual Indicators**: Real-time feedback showing when the AI is speaking or listening
+- **Responsive Interface**: Clean, modern UI with visual states for all process stages
+
+## Technology Stack
+
+- **Frontend**:
+  - Next.js 15 (React framework)
+  - Tailwind CSS (styling with dark mode support)
+  - Framer Motion (animations and transitions)
+  - shadcn/ui (component library)
+  - TypeScript (type safety)
+
+- **Backend**:
+  - Next.js API Routes (serverless functions)
+  - OpenAI SDK integration
+
+- **AI Components**:
+  - OpenAI Assistants API for resume parsing
+  - OpenAI WebRTC for real-time audio conversation
+  - Document analysis with GPT-4 Turbo
+
+- **Data Flow**:
+  - WebRTC audio streaming
+  - PDF document processing
+  - Real-time state management
+
+## API Endpoints
+
+### `/api/upload-pdf`
+
+Handles resume uploads and processing:
+
+```typescript
+POST /api/upload-pdf
+Content-Type: multipart/form-data
+
+// Request Body:
+file: [PDF File]
+
+// Response:
+{
+  "success": true,
+  "threadId": "thread_abc123...",
+  "runId": "run_xyz789..."
+}
+```
+
+### `/api/check-run`
+
+Checks the status of OpenAI processing:
+
+```typescript
+GET /api/check-run?threadId={threadId}&runId={runId}
+
+// Response (in-progress):
+{
+  "success": true,
+  "done": false,
+  "status": "in_progress"
+}
+
+// Response (completed):
+{
+  "success": true,
+  "done": true,
+  "raw": "...",
+  "parsed": {
+    "fullName": "...",
+    "email": "...",
+    "skills": [...],
+    ...
+  }
+}
+```
+
+## Core Components
+
+### Document Upload
+
+Handles resume upload with:
+- Drag-and-drop interface
+- PDF validation
+- Processing status indicators
+- Resume data display
+
+### Job Description
+
+Manages job information with:
+- Form for company name, position, and description
+- Edit/save functionality
+- Structured job data storage
+
+### AI Speech Indicator
+
+Provides visual feedback on the AI's state:
+- Visual indicators for when AI is listening/speaking
+- Animation effects for audio activity
+- Status text reflecting current interaction state
+
+### Broadcast Button
+
+Controls the interview session:
+- Start/stop broadcasting functionality
+- Visual state changes based on session activity
+- Integration with WebRTC audio session
+
+## WebRTC Implementation
+
+A custom React hook (`useWebRTCAudioSession`) handles:
+- Real-time audio streaming with OpenAI
+- Session management (start/stop)
+- Audio visualization and volume detection
+- Message handling and conversation state
+
+## Setup and Development
+
+### Prerequisites
+
+- Node.js 18+ or Deno
+- OpenAI API Key with access to:
+  - Assistants API
+  - Realtime API (Beta)
+
+### Environment Variables
+
+```
 OPENAI_API_KEY=your-openai-api-key
 ```
 
-### 3. Install Dependencies
-If using **Node.js**:
+### Development
+
 ```bash
+# Install dependencies
 npm install
-```
 
-If using **Deno**:
-```bash
-deno install
-```
-
-### 4. Run the Application
-
-#### Using Node.js:
-```bash
+# Run development server
 npm run dev
 ```
 
-#### Using Deno:
-```bash
-deno task start
-```
+### Production
 
-The application will be available at `http://localhost:3000`.
+The application is optimized for deployment on Vercel with:
+- Edge function support
+- Automatic HTTPS
+- Serverless API routes
 
-## Usage
-1. Open the app in your browser: `http://localhost:3000`.
-3. Select a voice and start the audio session.
+## Created By
 
-## Deploy to Vercel
-**Deploy in one-click**
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fcameronking4%2Fopenai-realtime-api-nextjs&env=OPENAI_API_KEY&envDescription=OpenAI%20Key%20(Realtime%20API%20Beta%20access)&envLink=https%3A%2F%2Fplatform.openai.com%2Fapi-keys&project-name=openai-rt-shadcn&repository-name=openai-realtime-api-nextjs-clone&demo-title=OpenAI%20Realtime%20API%20(WebRTC)%20x%20shadcn%2Fui&demo-description=Next.js%2015%20template%20to%20create%20beautiful%20Voice%20AI%20applications%20with%20OpenAI%20Realtime%20API%20Beta&demo-url=https%3A%2F%2Fopenai-rt-shadcn.vercel.app&demo-image=http%3A%2F%2Fopenai-rt-shadcn.vercel.app%2Fdemo.gif)
+Dylan Hubert & Luke Heitman
 
 ## License
-This project is licensed under the MIT License. See the `LICENSE` file for details.
 
-## Acknowledgements
-- [OpenAI](https://openai.com/) for their API and models.
-- [Next.js](https://nextjs.org/) for the framework.
-- [Tailwind CSS](https://tailwindcss.com/) for styling.
-- [Simon Willison’s Weblog](https://simonwillison.net/2024/Dec/17/openai-webrtc/) for inspiration
-- [Originator: skrivov](https://github.com/skrivov/openai-voice-webrtc-next) for the WebRTC and Nextjs implementation
+MIT License

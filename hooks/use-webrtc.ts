@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { Conversation } from "@/lib/conversations";
 import { useTranslations } from "@/components/translations-context";
+
+type WebRTCStatus = 'idle' | 'connecting' | 'connected' | 'Session active' | 'Session paused' | 'disconnected' | 'error' | string;
 
 export interface Tool {
   name: string;
@@ -18,6 +20,7 @@ export interface Tool {
 interface UseWebRTCAudioSessionReturn {
   status: string;
   isSessionActive: boolean;
+  isPaused: boolean;
   audioIndicatorRef: React.RefObject<HTMLDivElement | null>;
   startSession: () => Promise<void>;
   stopSession: () => void;
@@ -27,6 +30,9 @@ interface UseWebRTCAudioSessionReturn {
   currentVolume: number;
   conversation: Conversation[];
   sendTextMessage: (text: string) => void;
+  pauseSession: () => void;
+  resumeSession: () => void;
+  togglePause: () => void;
 }
 
 /**
@@ -38,8 +44,9 @@ export default function useWebRTCAudioSession(
 ): UseWebRTCAudioSessionReturn {
   const { t, locale } = useTranslations();
   // Connection/session states
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<WebRTCStatus>("idle");
   const [isSessionActive, setIsSessionActive] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
   // Audio references for local mic
   // Approach A: explicitly typed as HTMLDivElement | null
@@ -556,6 +563,38 @@ export default function useWebRTCAudioSession(
     dataChannelRef.current.send(JSON.stringify(response));
   }
 
+  const pauseSession = useCallback(() => {
+    if (!audioStreamRef.current) return;
+    
+    // Pause all audio tracks
+    audioStreamRef.current.getAudioTracks().forEach(track => {
+      track.enabled = false;
+    });
+    
+    setIsPaused(true);
+    setStatus('Session paused');
+  }, []);
+  
+  const resumeSession = useCallback(() => {
+    if (!audioStreamRef.current) return;
+    
+    // Resume all audio tracks
+    audioStreamRef.current.getAudioTracks().forEach(track => {
+      track.enabled = true;
+    });
+    
+    setIsPaused(false);
+    setStatus('Session active');
+  }, []);
+  
+  const togglePause = useCallback(() => {
+    if (isPaused) {
+      resumeSession();
+    } else {
+      pauseSession();
+    }
+  }, [isPaused, pauseSession, resumeSession]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => stopSession();
@@ -565,6 +604,7 @@ export default function useWebRTCAudioSession(
   return {
     status,
     isSessionActive,
+    isPaused,
     audioIndicatorRef,
     startSession,
     stopSession,
@@ -574,5 +614,8 @@ export default function useWebRTCAudioSession(
     currentVolume,
     conversation,
     sendTextMessage,
+    pauseSession,
+    resumeSession,
+    togglePause,
   };
 }

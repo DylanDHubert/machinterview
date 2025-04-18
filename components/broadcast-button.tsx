@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useTranslations } from "@/components/translations-context";
-import { Mic, RadioTower } from "lucide-react";
+import { Mic, RadioTower, Video } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface BroadcastButtonProps {
@@ -21,10 +21,10 @@ export function BroadcastButton({ isSessionActive, onClick }: BroadcastButtonPro
     >
       <Button
         variant="outline"
-        className={`w-full py-3 font-medium flex items-center justify-center gap-2 rounded-lg shadow-sm transition-all duration-300 ${
+        className={`w-full py-4 font-medium flex items-center justify-center gap-2 rounded-lg shadow-md transition-all duration-300 hover:translate-y-[-2px] ${
           isSessionActive 
-            ? "bg-red-50 hover:bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-300 dark:border-red-800/50" 
-            : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 dark:text-indigo-300 dark:border-indigo-800/50"
+            ? "bg-red-50 hover:bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-300 dark:border-red-800/50 hover:shadow-red-100/50 dark:hover:shadow-red-900/20" 
+            : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-800/50 hover:shadow-emerald-100/50 dark:hover:shadow-emerald-900/20"
         }`}
         onClick={onClick}
       >
@@ -34,7 +34,7 @@ export function BroadcastButton({ isSessionActive, onClick }: BroadcastButtonPro
               <div className="relative">
                 <RadioTower className="h-5 w-5" />
                 <motion.div 
-                  className="absolute -inset-1 rounded-full bg-red-200 dark:bg-red-700/30 -z-10"
+                  className="absolute -inset-1.5 rounded-full bg-red-200 dark:bg-red-700/30 -z-10"
                   animate={{ 
                     scale: [1, 1.5, 1],
                     opacity: [0.7, 0.3, 0.7]
@@ -46,8 +46,8 @@ export function BroadcastButton({ isSessionActive, onClick }: BroadcastButtonPro
                   }}
                 />
               </div>
-              <span className="text-sm">
-                {t('broadcast.end')}
+              <span className="font-medium">
+                End Interview
               </span>
               <Badge 
                 variant="outline" 
@@ -57,14 +57,31 @@ export function BroadcastButton({ isSessionActive, onClick }: BroadcastButtonPro
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
                 </span>
-                {t('broadcast.live')}
+                LIVE
               </Badge>
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <Mic className="h-5 w-5" />
-              <span className="text-sm">
-                {t('broadcast.start')}
+              <div className="relative">
+                <div className="flex space-x-1">
+                  <Video className="h-5 w-5" />
+                  <Mic className="h-5 w-5" />
+                </div>
+                <motion.div 
+                  className="absolute -inset-1.5 rounded-full bg-emerald-200 dark:bg-emerald-700/30 -z-10 opacity-0"
+                  animate={{ 
+                    scale: [1, 1.2, 1],
+                    opacity: [0, 0.3, 0]
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                />
+              </div>
+              <span className="font-medium">
+                Start Interview
               </span>
             </div>
           )}

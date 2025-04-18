@@ -1,88 +1,272 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import useWebRTCAudioSession from "@/hooks/use-webrtc"
 import { tools } from "@/lib/tools"
 import { BroadcastButton } from "@/components/broadcast-button"
-import { DocumentUpload } from "@/components/document-upload"
 import { AISpeechIndicator } from "@/components/ai-speech-indicator"
-import { JobDescription, JobDetails } from "@/components/job-description"
+import { JobDetails } from "@/components/job-description"
+import { SetupModal } from "@/components/setup-modal"
+import { Button } from "@/components/ui/button"
+import { InterviewTranscript } from "@/components/interview-transcript"
+import { LeftSection } from "@/components/left-section"
+import { PauseButton } from "@/components/pause-button"
+
+// Import Conversation type from the same place the hook is using it
+import type { Conversation } from "@/lib/conversations"
+import { registerResetCallback } from "@/lib/reset-utils"
+
+// Check if we're in development mode
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+// Mock data for development testing
+const mockResumeData = {
+  fullName: "John Developer",
+  email: "john@example.com",
+  phone: "555-123-4567",
+  skills: ["React", "TypeScript", "Node.js", "UI/UX Design"],
+  experience: [
+    {
+      title: "Frontend Developer",
+      company: "Tech Solutions Inc.",
+      dates: "2020-2023",
+      description: "Developed modern web applications using React and TypeScript."
+    }
+  ],
+  education: [
+    {
+      degree: "B.S. Computer Science",
+      school: "University of Technology",
+      year: "2020"
+    }
+  ]
+};
+
+const mockJobData: JobDetails = {
+  jobTitle: "Senior Frontend Developer",
+  companyName: "Innovation Labs",
+  jobDescription: "We're looking for an experienced frontend developer with expertise in React and TypeScript to join our team. The ideal candidate will have 3+ years of experience building modern web applications and a strong eye for UI/UX design."
+};
 
 const App: React.FC = () => {
   // AI speaking state
   const [aiSpeaking, setAiSpeaking] = useState(false)
   
-  // WebRTC Audio Session Hook
+  // Setup modal state
+  const [showSetupModal, setShowSetupModal] = useState(!isDevelopment)
+  const [setupComplete, setSetupComplete] = useState(isDevelopment)
+  
+  // View state for left section
+  const [leftView, setLeftView] = useState<'welcome' | 'webcam' | 'results'>('welcome')
+  
+  // Add isReady state to track if interview is ready
+  const [isReady, setIsReady] = useState(false)
+  
+  // Add voice selection state
+  const [selectedVoice, setSelectedVoice] = useState("ash")
+  
+  // Add interview messages state
+  const [interviewMessages, setInterviewMessages] = useState<Conversation[]>([])
+
+  // Add audio stream reference
+  const audioStreamRef = useRef<MediaStream | null>(null)
+
+  // State for resume data - moved up to fix linter error
+  const [resumeData, setResumeData] = useState<Record<string, unknown> | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [processingError, setProcessingError] = useState<string | null>(null)
+  
+  // State for job details - moved up to fix linter error
+  const [jobData, setJobData] = useState<JobDetails | null>(null)
+
+  // WebRTC Audio Session Hook - use selectedVoice instead of hardcoded "ash"
   const {
     isSessionActive,
     handleStartStopClick,
     currentVolume,
     startSession,
     sendTextMessage,
-  } = useWebRTCAudioSession("ash", tools)
+    conversation,
+    pauseSession,
+    resumeSession,
+    isPaused: webRTCIsPaused
+  } = useWebRTCAudioSession(selectedVoice, tools)
 
-  // Determine if AI is speaking based on volume
-  React.useEffect(() => {
-    setAiSpeaking(currentVolume > 0.01 && isSessionActive)
-  }, [currentVolume, isSessionActive])
-  
-  // Custom handler for starting session with resume and job data
-  const handleStartInterview = async () => {
-    // First start the WebRTC session
-    await startSession()
+  // Register global reset callback
+  useEffect(() => {
+    // Define the reset function
+    const resetFunction = () => {
+      // Reset all state
+      setResumeData(null);
+      setJobData(null);
+      setSetupComplete(false);
+      setShowSetupModal(true);
+      setIsReady(false);
+      setLeftView('welcome');
+      
+      // If session is active, stop it
+      if (isSessionActive) {
+        handleStartStopClick();
+      }
+    };
     
-    // Different scenarios based on what data we have
-    if (resumeData && jobData) {
-      // Both resume and job data available - ideal scenario
-      const contextMessage = `
-I'm applying for a ${jobData.jobTitle} position at ${jobData.companyName}.
-Here's my resume information: ${JSON.stringify(resumeData, null, 2)}
+    // Register with our utility
+    const cleanupCallback = registerResetCallback(resetFunction);
+    
+    // Return cleanup function
+    return cleanupCallback;
+  }, [isSessionActive, handleStartStopClick]);
 
-Here's the job description:
-${jobData.jobDescription}
-
-Based on my resume and this job description, please conduct an interview with me focusing on relevant skills and experience.
-`
-      // Send the context message to the AI
-      setTimeout(() => {
-        sendTextMessage(contextMessage)
-      }, 1000) // Small delay to ensure session is fully established
-    } 
-    else if (resumeData) {
-      // Only resume data available
-      const contextMessage = `
-Here's my resume information: ${JSON.stringify(resumeData, null, 2)}
-
-Based on my resume, please conduct a general interview with me focusing on my skills and experience.
-`
-      setTimeout(() => {
-        sendTextMessage(contextMessage)
-      }, 1000)
+  // Load mock data in development mode
+  useEffect(() => {
+    if (isDevelopment && !resumeData && !jobData) {
+      setResumeData(mockResumeData);
+      setJobData(mockJobData);
     }
-    else if (jobData) {
-      // Only job data available
-      const contextMessage = `
-I'm applying for a ${jobData.jobTitle} position at ${jobData.companyName}.
-
-Here's the job description:
-${jobData.jobDescription}
-
-Based on this job description, please conduct an interview with me focusing on skills needed for this role.
-`
-      setTimeout(() => {
-        sendTextMessage(contextMessage)
-      }, 1000)
-    }
-    // If no data is available, just start a general interview (no context needed)
-  }
-
-  // State for resume data
-  const [resumeData, setResumeData] = useState<Record<string, unknown> | null>(null)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [processingError, setProcessingError] = useState<string | null>(null)
+  }, [resumeData, jobData]);
   
-  // State for job details
-  const [jobData, setJobData] = useState<JobDetails | null>(null)
+  // Helper function to bypass setup in development mode
+  const bypassSetup = () => {
+    setResumeData(mockResumeData);
+    setJobData(mockJobData);
+    setShowSetupModal(false);
+    setSetupComplete(true);
+  };
+
+  // Use WebRTC hook's built-in pause/resume functionality instead of our manual implementation
+  const handlePauseResume = () => {
+    if (webRTCIsPaused) {
+      resumeSession();
+      console.log("Interview resumed using WebRTC hook");
+    } else {
+      pauseSession();
+      // Ensure AI speaking indicator is turned off when paused
+      setAiSpeaking(false);
+      console.log("Interview paused using WebRTC hook");
+    }
+  };
+
+  // Determine if AI is speaking based on volume, session state, and pause state
+  React.useEffect(() => {
+    // Only update AI speaking state if not paused
+    if (!webRTCIsPaused) {
+      setAiSpeaking(currentVolume > 0.01 && isSessionActive);
+    }
+  }, [currentVolume, isSessionActive, webRTCIsPaused]);
+  
+  // Update interview messages when conversation changes
+  React.useEffect(() => {
+    if (conversation) {
+      setInterviewMessages(conversation)
+    }
+  }, [conversation])
+  
+  // Access and store the audio stream when the interview starts
+  useEffect(() => {
+    if (isReady && !audioStreamRef.current) {
+      navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+        .then(stream => {
+          audioStreamRef.current = stream;
+        })
+        .catch(err => {
+          console.error("Error accessing media devices:", err);
+        });
+    }
+  }, [isReady]);
+
+  // Update the left view when interview starts or ends
+  React.useEffect(() => {
+    if (isReady) {
+      setLeftView('webcam')
+    } else if (setupComplete) {
+      setLeftView('welcome')
+    }
+  }, [isReady, setupComplete])
+  
+  // Cleanup audio stream on unmount
+  useEffect(() => {
+    return () => {
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+        audioStreamRef.current = null;
+      }
+    };
+  }, []);
+  
+  // Combined function to handle broadcast toggling and interview start/stop
+  const handleBroadcastToggle = async () => {
+    if (isSessionActive) {
+      // If session is active, stop it
+      try {
+        // Stop the WebRTC audio session (voice recognition and AI stream)
+        handleStartStopClick();
+        
+        // Update UI state to show interview is not active
+        setIsReady(false);
+        
+        // Reset AI speaking state
+        setAiSpeaking(false);
+        
+        console.log("Interview paused: camera, voice recognition, and AI stream stopped");
+      } catch (error) {
+        console.error("Error stopping interview:", error);
+      }
+    } else {
+      // If session is not active, ensure setup is complete then start
+      if (!setupComplete) {
+        setShowSetupModal(true);
+        return;
+      }
+      
+      try {
+        // Start the session
+        await startSession();
+        setIsReady(true);
+        setLeftView('webcam');
+        
+        console.log("Interview started: camera, voice recognition, and AI stream activated");
+        
+        // Send context message if available
+        if (resumeData && jobData) {
+          const contextMessage = `
+I'm applying for a ${jobData.jobTitle} position at ${jobData.companyName}.
+Here's my resume information: ${JSON.stringify(resumeData, null, 2)}
+
+Here's the job description:
+${jobData.jobDescription}
+
+Based on my resume and this job description, please conduct an interview with me focusing on relevant skills and experience.`;
+          
+          setTimeout(() => {
+            sendTextMessage(contextMessage);
+          }, 1000);
+        } else if (resumeData) {
+          const contextMessage = `
+Here's my resume information: ${JSON.stringify(resumeData, null, 2)}
+
+Based on my resume, please conduct a general interview with me focusing on my skills and experience.`;
+          
+          setTimeout(() => {
+            sendTextMessage(contextMessage);
+          }, 1000);
+        } else if (jobData) {
+          const contextMessage = `
+I'm applying for a ${jobData.jobTitle} position at ${jobData.companyName}.
+
+Here's the job description:
+${jobData.jobDescription}
+
+Based on this job description, please conduct an interview with me focusing on skills needed for this role.`;
+          
+          setTimeout(() => {
+            sendTextMessage(contextMessage);
+          }, 1000);
+        }
+      } catch (error) {
+        console.error("Error starting interview:", error);
+      }
+    }
+  };
   
   // Handle file upload
   const handleFileUpload = async (file: File) => {
@@ -179,94 +363,101 @@ Based on this job description, please conduct an interview with me focusing on s
     poll()
   }
 
-  // Common background style for all sections
-  const bgStyle = "bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-indigo-950"
+  // Handle setup completion
+  const handleSetupComplete = (resumeData: Record<string, unknown>, jobData: JobDetails, voice: string) => {
+    setResumeData(resumeData);
+    setJobData(jobData);
+    setSelectedVoice(voice);
+    setShowSetupModal(false);
+    setSetupComplete(true);
+  }
 
   return (
-    <div className="w-screen max-w-full h-[calc(100vh-3rem)] pt-4 px-4 pb-4 bg-gray-100 dark:bg-gray-950 overflow-x-hidden">
-      {/* Top row - 1/3 height with two equal sections */}
-      <div className="flex h-1/3 w-full gap-4 mb-4">
-        {/* Top left section - Job/Interviewer Details */}
-        <div className="w-1/2 rounded-xl overflow-hidden shadow-md">
-          {/* Tab header */}
-          <div className="h-9 bg-gray-200 dark:bg-gray-800 px-4 flex items-center rounded-t-xl">
-            <div className="w-3 h-3 rounded-full bg-gray-400 dark:bg-gray-600 mr-2"></div>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Job / Interviewer Details</h3>
-          </div>
-          
-          {/* Content area */}
-          <div className={`h-[calc(100%-2.25rem)] ${bgStyle}`}>
-            <JobDescription 
-              onSubmit={handleJobSubmit} 
-              isSubmitted={jobData !== null}
-            />
-          </div>
+    <div className="flex flex-col w-full h-[calc(100vh-48px)] bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-indigo-950 p-4 pt-4 pb-4">
+      {/* Development mode controls */}
+      {isDevelopment && (
+        <div className="fixed top-14 right-4 z-[100]">
+          <Button 
+            size="sm" 
+            variant={setupComplete ? "default" : "outline"}
+            className={setupComplete 
+              ? "bg-green-600 hover:bg-green-700 text-white" 
+              : "bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200"
+            }
+            onClick={bypassSetup}
+          >
+            {setupComplete ? "Dev Mode: Using Mock Data" : "Dev Mode: Skip Setup"}
+          </Button>
         </div>
-        
-        {/* Top right section - Resume upload component */}
-        <div className="w-1/2 rounded-xl overflow-hidden shadow-md">
-          {/* Tab header */}
-          <div className="h-9 bg-gray-200 dark:bg-gray-800 px-4 flex items-center rounded-t-xl">
-            <div className="w-3 h-3 rounded-full bg-gray-400 dark:bg-gray-600 mr-2"></div>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Resume Upload</h3>
-          </div>
-          
-          {/* Content area */}
-          <div className={`h-[calc(100%-2.25rem)] ${bgStyle}`}>
-            <DocumentUpload 
-              onUpload={handleFileUpload} 
-              isProcessing={isProcessing}
-              processingError={processingError}
-              resumeData={resumeData}
-            />
-          </div>
-        </div>
-      </div>
-      
-      {/* Bottom row - 2/3 height with two equal sections */}
-      <div className="flex h-[calc(2/3*100%-1rem)] w-full gap-4">
-        {/* Bottom left section - Webcam Feed */}
-        <div className="w-1/2 rounded-xl overflow-hidden shadow-md">
-          {/* Tab header */}
-          <div className="h-9 bg-gray-200 dark:bg-gray-800 px-4 flex items-center rounded-t-xl">
-            <div className="w-3 h-3 rounded-full bg-gray-400 dark:bg-gray-600 mr-2"></div>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Webcam Feed</h3>
-          </div>
-          
-          {/* Content area */}
-          <div className={`h-[calc(100%-2.25rem)] ${bgStyle} p-4`}>
-            {/* Empty for now */}
-          </div>
-        </div>
-        
-        {/* Bottom right section - AI Assistant */}
-        <div className="w-1/2 rounded-xl overflow-hidden shadow-md">
-          {/* Tab header */}
-          <div className="h-9 bg-gray-200 dark:bg-gray-800 px-4 flex items-center rounded-t-xl">
-            <div className="w-3 h-3 rounded-full bg-gray-400 dark:bg-gray-600 mr-2"></div>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">AI Assistant</h3>
-          </div>
-          
-          {/* Content area */}
-          <div className={`h-[calc(100%-2.25rem)] ${bgStyle} flex flex-col`}>
-            {/* Broadcast button at the top */}
-            <div className="p-4 border-b border-indigo-100 dark:border-indigo-900/50">
-              <BroadcastButton 
-                isSessionActive={isSessionActive} 
-                onClick={isSessionActive ? handleStartStopClick : handleStartInterview}
-              />
+      )}
+
+      <div className="flex flex-col h-full overflow-hidden">
+        <div className="grid grid-rows-[1fr] grid-cols-[1fr,400px] h-full gap-4">
+          {/* Left Section with switchable content */}
+          <LeftSection 
+            view={leftView}
+            isReady={isReady}
+            onStartInterview={handleBroadcastToggle}
+            transcript=""
+            mockData={resumeData}
+            interviewMessages={interviewMessages}
+            isPaused={webRTCIsPaused}
+          />
+
+          {/* AI Assistant */}
+          <div className="flex flex-col h-full rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-indigo-950 shadow-md overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-4 min-h-0 bg-gradient-to-br from-white/80 to-blue-50/80 dark:from-gray-900/60 dark:to-indigo-950/60 backdrop-blur-sm rounded-t-lg">
+              <InterviewTranscript messages={interviewMessages} />
             </div>
-            
-            {/* AI speech indicator */}
-            <div className="flex-1 flex items-center justify-center">
-              <AISpeechIndicator 
-                isSpeaking={aiSpeaking} 
-                isSessionActive={isSessionActive}
-              />
+            <div className="border-t border-blue-100 dark:border-indigo-900/50 p-4 pt-8">
+              <div className="flex flex-col items-center">
+                <AISpeechIndicator 
+                  isSpeaking={aiSpeaking} 
+                  isSessionActive={isReady}
+                  isPaused={webRTCIsPaused}
+                />
+                
+                <div className="flex justify-center items-center gap-4 w-full mt-4">
+                  {/* Main broadcast button */}
+                  <div className={isSessionActive ? "w-full" : "w-full"}>
+                    {isSessionActive ? (
+                      <div className="space-y-3">
+                        <PauseButton 
+                          isPaused={webRTCIsPaused} 
+                          onClick={handlePauseResume}
+                        />
+                        <BroadcastButton 
+                          isSessionActive={isSessionActive} 
+                          onClick={handleBroadcastToggle}
+                        />
+                      </div>
+                    ) : (
+                      <BroadcastButton 
+                        isSessionActive={isSessionActive} 
+                        onClick={handleBroadcastToggle}
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Setup Modal - only show if not bypassed in development mode */}
+      {(showSetupModal) && (
+        <SetupModal
+          open={showSetupModal}
+          onComplete={handleSetupComplete}
+          handleFileUpload={handleFileUpload}
+          isProcessing={isProcessing}
+          processingError={processingError}
+          resumeData={resumeData}
+          jobData={jobData}
+          onJobSubmit={handleJobSubmit}
+        />
+      )}
     </div>
   )
 }

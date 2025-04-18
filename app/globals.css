@@ -108,3 +108,17 @@
   animation: shimmer 3s linear infinite;
   background-size: 200% auto;
 }
+
+/* Slow spinning animation for reset button */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 2s linear infinite;
+}
