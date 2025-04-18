@@ -186,3 +186,69 @@ Dylan Hubert & Luke Heitman
 ## License
 
 MIT License
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 16.8.0 or newer
+- npm or pnpm
+
+### Installation
+
+1. Clone the repository
+```bash
+git clone https://github.com/yourusername/machinterview.git
+cd machinterview
+```
+
+2. Install dependencies
+```bash
+npm install
+# or
+pnpm install
+```
+
+3. Set up environment variables
+   
+Create a `.env.local` file in the root directory with the following variables:
+```
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+
+# OpenAI Configuration (if using OpenAI)
+OPENAI_API_KEY=your-openai-api-key
+```
+
+You can obtain Supabase credentials by creating a project at [supabase.com](https://supabase.com).
+
+4. Run the development server
+```bash
+npm run dev
+# or
+pnpm dev
+```
+
+5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+
+## Features
+
+- User authentication with Supabase
+- Resume upload and parsing
+- Job description analysis
+- AI-powered mock interviews
+- Real-time feedback
+
+## Technologies
+
+- Next.js
+- TypeScript
+- Supabase (Auth, Database, Storage)
+- Tailwind CSS
+- shadcn/ui
+- OpenAI (optional)
+
+## Database Setup
+
+You can use the provided SQL schema in `lib/supabase/schema.sql` to set up the necessary tables in your Supabase project.

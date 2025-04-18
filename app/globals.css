@@ -87,10 +87,22 @@
   }
   body {
     @apply bg-background text-foreground;
-    overflow: hidden; /* Prevent scrolling */
+    overflow: hidden; /* Prevent scrolling by default */
   }
   html {
-    overflow: hidden; /* Prevent scrolling */
+    overflow: hidden; /* Prevent scrolling by default */
+  }
+  
+  /* Allow scrolling on dashboard and other multi-section pages */
+  .allow-scroll {
+    overflow: auto !important;
+  }
+  
+  body[data-route^="/dashboard"],
+  body[data-route^="/profile"],
+  body[data-route="/login"],
+  body[data-route="/signup"] {
+    overflow: auto !important;
   }
 }
 

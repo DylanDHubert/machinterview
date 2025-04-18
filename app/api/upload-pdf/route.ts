@@ -1,69 +1,105 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createClient();
+    
+    // Check authentication
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    
+    // Better handling for missing session
+    if (authError) {
+      console.error('Auth error:', authError.message);
+      return NextResponse.json(
+        { error: 'Authentication error', message: authError.message },
+        { status: 401 }
+      );
+    }
+    
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Unauthorized', message: 'Please sign in to continue' },
+        { status: 401 }
+      );
+    }
+    
+    // Get form data
     const formData = await request.formData();
-    const file = formData.get('file') as File | null;
+    const file = formData.get('file') as File;
 
     if (!file) {
-      return NextResponse.json({ success: false, error: 'No file uploaded' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'No file provided' },
+        { status: 400 }
+      );
     }
 
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    // Validate file type
+    if (!file.type.includes('pdf')) {
+      return NextResponse.json(
+        { error: 'Only PDF files are allowed' },
+        { status: 400 }
+      );
+    }
 
-    const pdfFile = new File([fileBuffer], file.name, {
-      type: 'application/pdf',
-      lastModified: file.lastModified,
-    });
+    // Upload file to Supabase Storage
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+    const filePath = `${session.user.id}/${fileName}`;
 
-    const openaiFile = await openai.files.create({
-      file: pdfFile,
-      purpose: 'assistants',
-    });
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('resumes')
+      .upload(filePath, file);
 
-    const assistant = await openai.beta.assistants.create({
-      name: 'Resume Parser',
-      instructions: `You are a resume parsing assistant. Extract the following information from the resume:
-      - Full Name
-      - Email
-      - Phone Number
-      - Education (institution, degree, dates)
-      - Work Experience (company, title, dates, description)
-      - Skills
-      Format your response as a JSON object with these fields.`,
-      model: 'gpt-4-turbo',
-      tools: [{ type: 'file_search' }],
-    });
+    if (uploadError) {
+      return NextResponse.json(
+        { error: 'Failed to upload file' },
+        { status: 500 }
+      );
+    }
 
-    const thread = await openai.beta.threads.create();
+    // Get public URL
+    const { data: urlData } = await supabase.storage
+      .from('resumes')
+      .getPublicUrl(filePath);
 
-    await openai.beta.threads.messages.create(thread.id, {
-      role: 'user',
-      content: 'Please extract structured information from this resume. Return all the information in JSON format.',
-      attachments: [
-        {
-          file_id: openaiFile.id,
-          tools: [{ type: 'file_search' }],
-        },
-      ],
-    });
+    // Create database entry
+    const { data: resumeData, error: dbError } = await supabase
+      .from('resumes')
+      .insert({
+        user_id: session.user.id,
+        file_name: file.name,
+        file_url: urlData.publicUrl,
+        parsed_data: {} // Placeholder for parsed data
+      })
+      .select()
+      .single();
 
-    const run = await openai.beta.threads.runs.create(thread.id, {
-      assistant_id: assistant.id,
-    });
+    if (dbError) {
+      return NextResponse.json(
+        { error: 'Failed to save resume data' },
+        { status: 500 }
+      );
+    }
 
+    // In a real application, you would process the PDF here
+    // and extract relevant information
+
+    // Return success response
     return NextResponse.json({
       success: true,
-      threadId: thread.id,
-      runId: run.id,
+      data: {
+        id: resumeData.id,
+        filename: resumeData.file_name,
+        url: urlData.publicUrl
+      }
     });
   } catch (error) {
-    console.error('Resume upload error:', error);
-    return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 });
+    console.error('Error processing PDF upload:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

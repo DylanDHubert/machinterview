@@ -11,6 +11,9 @@ import { Button } from "@/components/ui/button"
 import { InterviewTranscript } from "@/components/interview-transcript"
 import { LeftSection } from "@/components/left-section"
 import { PauseButton } from "@/components/pause-button"
+import { ArrowRight, FileText, Sparkles } from "lucide-react"
+import Link from "next/link"
+import Image from "next/image"
 
 // Import Conversation type from the same place the hook is using it
 import type { Conversation } from "@/lib/conversations"
@@ -373,91 +376,160 @@ Based on this job description, please conduct an interview with me focusing on s
   }
 
   return (
-    <div className="flex flex-col w-full h-[calc(100vh-48px)] bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-indigo-950 p-4 pt-4 pb-4">
-      {/* Development mode controls */}
-      {isDevelopment && (
-        <div className="fixed top-14 right-4 z-[100]">
-          <Button 
-            size="sm" 
-            variant={setupComplete ? "default" : "outline"}
-            className={setupComplete 
-              ? "bg-green-600 hover:bg-green-700 text-white" 
-              : "bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200"
-            }
-            onClick={bypassSetup}
-          >
-            {setupComplete ? "Dev Mode: Using Mock Data" : "Dev Mode: Skip Setup"}
-          </Button>
+    <div className="h-screen w-screen flex flex-col allow-scroll">
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed top-2 right-2 z-50 bg-black/70 text-white p-2 rounded text-xs">
+          {setupComplete ? 'Setup Complete' : 'Setup Incomplete'} | 
+          Session: {isSessionActive ? 'Active' : 'Inactive'}
         </div>
       )}
-
-      <div className="flex flex-col h-full overflow-hidden">
-        <div className="grid grid-rows-[1fr] grid-cols-[1fr,400px] h-full gap-4">
-          {/* Left Section with switchable content */}
-          <LeftSection 
-            view={leftView}
-            isReady={isReady}
-            onStartInterview={handleBroadcastToggle}
-            transcript=""
-            mockData={resumeData}
-            interviewMessages={interviewMessages}
-            isPaused={webRTCIsPaused}
-          />
-
-          {/* AI Assistant */}
-          <div className="flex flex-col h-full rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-indigo-950 shadow-md overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-4 min-h-0 bg-gradient-to-br from-white/80 to-blue-50/80 dark:from-gray-900/60 dark:to-indigo-950/60 backdrop-blur-sm rounded-t-lg">
-              <InterviewTranscript messages={interviewMessages} />
-            </div>
-            <div className="border-t border-blue-100 dark:border-indigo-900/50 p-4 pt-8">
-              <div className="flex flex-col items-center">
-                <AISpeechIndicator 
-                  isSpeaking={aiSpeaking} 
-                  isSessionActive={isReady}
-                  isPaused={webRTCIsPaused}
-                />
-                
-                <div className="flex justify-center items-center gap-4 w-full mt-4">
-                  {/* Main broadcast button */}
-                  <div className={isSessionActive ? "w-full" : "w-full"}>
-                    {isSessionActive ? (
-                      <div className="space-y-3">
-                        <PauseButton 
-                          isPaused={webRTCIsPaused} 
-                          onClick={handlePauseResume}
-                        />
-                        <BroadcastButton 
-                          isSessionActive={isSessionActive} 
-                          onClick={handleBroadcastToggle}
-                        />
-                      </div>
-                    ) : (
-                      <BroadcastButton 
-                        isSessionActive={isSessionActive} 
-                        onClick={handleBroadcastToggle}
-                      />
-                    )}
+      <main className="flex-1">
+        <section className="w-full py-12 md:py-24 lg:py-32">
+          <div className="container px-4 md:px-6">
+            <div className="grid gap-6 lg:grid-cols-2 lg:gap-12 items-center">
+              <div className="space-y-4">
+                <div className="inline-block rounded-lg bg-gray-100 px-3 py-1 text-sm dark:bg-gray-800">
+                  <div className="flex items-center gap-1">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>AI-Powered Interview Preparation</span>
+                  </div>
+                </div>
+                <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
+                  Practice your interview skills with our AI assistant
+                </h1>
+                <p className="max-w-[600px] text-gray-500 md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed dark:text-gray-400">
+                  Upload your resume, provide job details, and get personalized interview questions. Our AI will help you prepare for your next job interview.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Link href="/signup">
+                    <Button className="gap-1">
+                      Create Account
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Link href="/login">
+                    <Button variant="outline" className="gap-1">
+                      Sign In
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+              <div className="mx-auto w-full max-w-[500px] relative aspect-square lg:aspect-auto">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl opacity-20 blur-2xl animate-pulse" />
+                <div className="relative bg-white dark:bg-gray-900 border rounded-xl shadow-lg overflow-hidden p-4 h-full flex flex-col">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-4 rounded-full bg-red-500" />
+                      <div className="h-4 w-4 rounded-full bg-yellow-500" />
+                      <div className="h-4 w-4 rounded-full bg-green-500" />
+                    </div>
+                    <div className="text-xs font-medium">Interview Session</div>
+                  </div>
+                  <div className="flex-1 flex flex-col gap-3">
+                    <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg max-w-[80%]">
+                      <p className="text-sm">Tell me about your experience with React</p>
+                    </div>
+                    <div className="bg-primary/10 text-primary p-3 rounded-lg max-w-[80%] self-end">
+                      <p className="text-sm">I have 3 years of experience building React applications...</p>
+                    </div>
+                    <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg max-w-[80%]">
+                      <p className="text-sm">Can you describe a challenging project you worked on?</p>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+        </section>
+        <section className="w-full py-12 md:py-24 lg:py-32 bg-gray-100 dark:bg-gray-800">
+          <div className="container px-4 md:px-6">
+            <div className="flex flex-col items-center justify-center space-y-4 text-center">
+              <div className="space-y-2">
+                <div className="inline-block rounded-lg bg-primary/10 px-3 py-1 text-sm">
+                  <div className="flex items-center gap-1">
+                    <FileText className="h-3.5 w-3.5" />
+                    <span>How It Works</span>
+                  </div>
+                </div>
+                <h2 className="text-3xl font-bold tracking-tighter md:text-4xl">Simple 3-Step Process</h2>
+                <p className="max-w-[700px] text-gray-500 md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed dark:text-gray-400">
+                  Our platform makes interview preparation easy and effective
+                </p>
+              </div>
+            </div>
+            <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-3 lg:gap-12 mt-8">
+              <div className="flex flex-col items-center space-y-2 rounded-lg border p-4 dark:border-gray-700">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <FileText className="h-6 w-6" />
+                </div>
+                <h3 className="text-xl font-bold">Upload Resume</h3>
+                <p className="text-center text-gray-500 dark:text-gray-400">
+                  Add your resume and let our AI analyze your experience and skills
+                </p>
+              </div>
+              <div className="flex flex-col items-center space-y-2 rounded-lg border p-4 dark:border-gray-700">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-6 w-6"
+                  >
+                    <rect width="8" height="14" x="8" y="5" rx="1" />
+                    <path d="M4 5h4" />
+                    <path d="M4 10h4" />
+                    <path d="M4 15h4" />
+                    <path d="M16 5h4" />
+                    <path d="M16 10h4" />
+                    <path d="M16 15h4" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold">Provide Job Details</h3>
+                <p className="text-center text-gray-500 dark:text-gray-400">
+                  Enter information about the position you're applying for
+                </p>
+              </div>
+              <div className="flex flex-col items-center space-y-2 rounded-lg border p-4 dark:border-gray-700">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Sparkles className="h-6 w-6" />
+                </div>
+                <h3 className="text-xl font-bold">Practice Interview</h3>
+                <p className="text-center text-gray-500 dark:text-gray-400">
+                  Engage in a simulated interview with tailored questions and feedback
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+      <footer className="border-t py-6 md:py-0">
+        <div className="container flex flex-col items-center justify-between gap-4 md:h-16 md:flex-row">
+          <p className="text-center text-sm leading-loose text-gray-500 md:text-left">
+            © 2023 Interview AI. All rights reserved.
+          </p>
+          <div className="flex items-center gap-4">
+            <Link
+              href="#"
+              className="text-sm font-medium hover:underline underline-offset-4"
+            >
+              Terms of Service
+            </Link>
+            <Link
+              href="#"
+              className="text-sm font-medium hover:underline underline-offset-4"
+            >
+              Privacy
+            </Link>
+          </div>
         </div>
-      </div>
-
-      {/* Setup Modal - only show if not bypassed in development mode */}
-      {(showSetupModal) && (
-        <SetupModal
-          open={showSetupModal}
-          onComplete={handleSetupComplete}
-          handleFileUpload={handleFileUpload}
-          isProcessing={isProcessing}
-          processingError={processingError}
-          resumeData={resumeData}
-          jobData={jobData}
-          onJobSubmit={handleJobSubmit}
-        />
-      )}
+      </footer>
     </div>
   )
 }

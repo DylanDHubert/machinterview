@@ -6,8 +6,9 @@ import { motion } from "framer-motion";
 import { useTranslations } from "@/components/translations-context";
 import { useState } from "react";
 import { Button } from "./ui/button";
-import { RefreshCw, Lock, Unlock } from "lucide-react";
+import { RefreshCw, Lock, Unlock, MessageSquare } from "lucide-react";
 import { handleGlobalReset } from "@/lib/reset-utils";
+import { AuthStatus } from "./auth/auth-status";
 
 export function Header() {
   const { t } = useTranslations();
@@ -57,6 +58,20 @@ export function Header() {
               </Badge>
             </motion.div>
           </Link>
+          
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="ml-6"
+          >
+            <Link href="/interview">
+              <Button variant="ghost" size="sm" className="gap-1.5">
+                <MessageSquare className="h-3.5 w-3.5" />
+                Interview
+              </Button>
+            </Link>
+          </motion.div>
         </motion.nav>
         
         <div className="flex items-center gap-4">
@@ -92,6 +107,8 @@ export function Header() {
               )}
             </Button>
           </motion.div>
+          
+          <AuthStatus />
           
           <motion.div
             initial={{ opacity: 0 }}
