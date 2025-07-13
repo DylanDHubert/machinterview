@@ -92,6 +92,87 @@ export function SetupModal({
     { value: 'sage', label: 'Sage - Authoritative, precise, formal' },
     { value: 'verse', label: 'Verse - Enthusiastic, energetic, animated' },
   ]
+
+  // Function to play voice sample using text-to-speech
+  const playVoiceSample = (voiceType: string) => {
+    const sampleText = "Hello! I am your interviewer today, I'm excited to get to work";
+    
+    if ('speechSynthesis' in window) {
+      // Cancel any ongoing speech
+      window.speechSynthesis.cancel();
+      
+      setTimeout(() => {
+        const utterance = new SpeechSynthesisUtterance(sampleText);
+        
+        // Add event listeners for debugging
+        utterance.onstart = () => console.log('Speech started');
+        utterance.onend = () => console.log('Speech ended');
+        utterance.onerror = (event) => console.error('Speech error:', event.error);
+        
+        const voices = window.speechSynthesis.getVoices();
+        console.log('Available voices:', voices.length);
+        
+        if (voices.length > 0) {
+          let selectedSynthVoice = null;
+          
+          switch (voiceType) {
+            case 'ash':
+              selectedSynthVoice = voices.find(voice => 
+                voice.name.toLowerCase().includes('female') || 
+                voice.name.toLowerCase().includes('woman')
+              ) || voices[0];
+              utterance.pitch = 1.0;
+              utterance.rate = 0.9;
+              break;
+            case 'ballad':
+              selectedSynthVoice = voices.find(voice => 
+                voice.name.toLowerCase().includes('male') || 
+                voice.name.toLowerCase().includes('man')
+              ) || voices[1] || voices[0];
+              utterance.pitch = 0.8;
+              utterance.rate = 0.85;
+              break;
+            case 'coral':
+              selectedSynthVoice = voices.find(voice => 
+                voice.name.toLowerCase().includes('female')
+              ) || voices[0];
+              utterance.pitch = 1.1;
+              utterance.rate = 0.95;
+              break;
+            case 'sage':
+              selectedSynthVoice = voices.find(voice => 
+                voice.name.toLowerCase().includes('male')
+              ) || voices[1] || voices[0];
+              utterance.pitch = 0.7;
+              utterance.rate = 0.8;
+              break;
+            case 'verse':
+              selectedSynthVoice = voices.find(voice => 
+                voice.name.toLowerCase().includes('female')
+              ) || voices[0];
+              utterance.pitch = 1.2;
+              utterance.rate = 1.1;
+              break;
+            default:
+              selectedSynthVoice = voices[0];
+          }
+          
+          if (selectedSynthVoice) {
+            utterance.voice = selectedSynthVoice;
+            console.log('Using voice:', selectedSynthVoice.name);
+          }
+          
+          utterance.volume = 1.0;
+          window.speechSynthesis.speak(utterance);
+        } else {
+          console.log('No voices available');
+        }
+      }, 200);
+    } else {
+      console.log('Speech synthesis not supported in this browser');
+      alert('Voice samples are not supported in your browser');
+    }
+  }
   
   return (
     <Dialog open={open}>
@@ -257,10 +338,7 @@ export function SetupModal({
                                 variant="outline" 
                                 size="sm"
                                 className="text-xs"
-                                onClick={() => {
-                                  // Play voice sample functionality would go here
-                                  console.log(`Playing sample for ${selectedVoice}`)
-                                }}
+                                onClick={() => playVoiceSample(selectedVoice)}
                               >
                                 Play Sample
                               </Button>

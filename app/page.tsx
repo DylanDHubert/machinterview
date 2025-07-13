@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button"
 import { InterviewTranscript } from "@/components/interview-transcript"
 import { LeftSection } from "@/components/left-section"
 import { PauseButton } from "@/components/pause-button"
+import { LandingPage } from "@/components/landing-page"
+import { JobInfoSidebar } from "@/components/job-info-sidebar"
 
 // Import Conversation type from the same place the hook is using it
 import type { Conversation } from "@/lib/conversations"
@@ -52,8 +54,11 @@ const App: React.FC = () => {
   // AI speaking state
   const [aiSpeaking, setAiSpeaking] = useState(false)
   
-  // Setup modal state
-  const [showSetupModal, setShowSetupModal] = useState(!isDevelopment)
+  // App state management
+  const [appState, setAppState] = useState<'landing' | 'setup' | 'interview'>(
+    isDevelopment ? 'interview' : 'landing'
+  )
+  const [showSetupModal, setShowSetupModal] = useState(false)
   const [setupComplete, setSetupComplete] = useState(isDevelopment)
   
   // View state for left section
@@ -100,9 +105,10 @@ const App: React.FC = () => {
       setResumeData(null);
       setJobData(null);
       setSetupComplete(false);
-      setShowSetupModal(true);
+      setShowSetupModal(false);
       setIsReady(false);
       setLeftView('welcome');
+      setAppState('landing');
       
       // If session is active, stop it
       if (isSessionActive) {
@@ -131,6 +137,7 @@ const App: React.FC = () => {
     setJobData(mockJobData);
     setShowSetupModal(false);
     setSetupComplete(true);
+    setAppState('interview');
   };
 
   // Use WebRTC hook's built-in pause/resume functionality instead of our manual implementation
@@ -178,10 +185,10 @@ const App: React.FC = () => {
   React.useEffect(() => {
     if (isReady) {
       setLeftView('webcam')
-    } else if (setupComplete) {
-      setLeftView('welcome')
+    } else if (setupComplete && appState === 'interview') {
+      setLeftView('webcam') // Start with webcam view ready, not welcome
     }
-  }, [isReady, setupComplete])
+  }, [isReady, setupComplete, appState])
   
   // Cleanup audio stream on unmount
   useEffect(() => {
@@ -229,34 +236,64 @@ const App: React.FC = () => {
         // Send context message if available
         if (resumeData && jobData) {
           const contextMessage = `
-I'm applying for a ${jobData.jobTitle} position at ${jobData.companyName}.
+You are conducting a realistic job interview. I'm applying for a ${jobData.jobTitle} position at ${jobData.companyName}.
+
 Here's my resume information: ${JSON.stringify(resumeData, null, 2)}
 
 Here's the job description:
 ${jobData.jobDescription}
 
-Based on my resume and this job description, please conduct an interview with me focusing on relevant skills and experience.`;
+IMPORTANT INTERVIEW GUIDELINES:
+- Ask ONE question at a time and wait for my response
+- Be conversational and natural like a real interviewer
+- Start with a warm greeting and one introductory question
+- Follow up based on my answers before moving to the next topic
+- Don't list multiple questions in a single response
+- Keep questions focused and specific
+- Act like you're having a real conversation, not conducting a survey
+
+Please start by introducing yourself and asking your first question.`;
           
           setTimeout(() => {
             sendTextMessage(contextMessage);
           }, 1000);
         } else if (resumeData) {
           const contextMessage = `
+You are conducting a realistic job interview. 
+
 Here's my resume information: ${JSON.stringify(resumeData, null, 2)}
 
-Based on my resume, please conduct a general interview with me focusing on my skills and experience.`;
+IMPORTANT INTERVIEW GUIDELINES:
+- Ask ONE question at a time and wait for my response
+- Be conversational and natural like a real interviewer
+- Start with a warm greeting and one introductory question
+- Follow up based on my answers before moving to the next topic
+- Don't list multiple questions in a single response
+- Keep questions focused and specific
+- Act like you're having a real conversation, not conducting a survey
+
+Please start by introducing yourself and asking your first question about my background.`;
           
           setTimeout(() => {
             sendTextMessage(contextMessage);
           }, 1000);
         } else if (jobData) {
           const contextMessage = `
-I'm applying for a ${jobData.jobTitle} position at ${jobData.companyName}.
+You are conducting a realistic job interview. I'm applying for a ${jobData.jobTitle} position at ${jobData.companyName}.
 
 Here's the job description:
 ${jobData.jobDescription}
 
-Based on this job description, please conduct an interview with me focusing on skills needed for this role.`;
+IMPORTANT INTERVIEW GUIDELINES:
+- Ask ONE question at a time and wait for my response
+- Be conversational and natural like a real interviewer
+- Start with a warm greeting and one introductory question
+- Follow up based on my answers before moving to the next topic
+- Don't list multiple questions in a single response
+- Keep questions focused and specific
+- Act like you're having a real conversation, not conducting a survey
+
+Please start by introducing yourself and asking your first question about my interest in this role.`;
           
           setTimeout(() => {
             sendTextMessage(contextMessage);
@@ -363,6 +400,12 @@ Based on this job description, please conduct an interview with me focusing on s
     poll()
   }
 
+  // Handle get started button
+  const handleGetStarted = () => {
+    setAppState('setup')
+    setShowSetupModal(true)
+  }
+
   // Handle setup completion
   const handleSetupComplete = (resumeData: Record<string, unknown>, jobData: JobDetails, voice: string) => {
     setResumeData(resumeData);
@@ -370,6 +413,12 @@ Based on this job description, please conduct an interview with me focusing on s
     setSelectedVoice(voice);
     setShowSetupModal(false);
     setSetupComplete(true);
+    setAppState('interview');
+  }
+
+  // Render different content based on app state
+  if (appState === 'landing') {
+    return <LandingPage onGetStarted={handleGetStarted} />
   }
 
   return (
@@ -392,8 +441,16 @@ Based on this job description, please conduct an interview with me focusing on s
       )}
 
       <div className="flex flex-col h-full overflow-hidden">
-        <div className="grid grid-rows-[1fr] grid-cols-[1fr,400px] h-full gap-4">
-          {/* Left Section with switchable content */}
+        <div className="grid grid-rows-[1fr] grid-cols-[300px,1fr,400px] h-full gap-4">
+          {/* Job Info Sidebar */}
+          {jobData && (
+            <JobInfoSidebar 
+              jobData={jobData} 
+              resumeData={resumeData}
+            />
+          )}
+
+          {/* Camera Section (middle) */}
           <LeftSection 
             view={leftView}
             isReady={isReady}
@@ -404,7 +461,7 @@ Based on this job description, please conduct an interview with me focusing on s
             isPaused={webRTCIsPaused}
           />
 
-          {/* AI Assistant */}
+          {/* AI Assistant (right) */}
           <div className="flex flex-col h-full rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-indigo-950 shadow-md overflow-hidden">
             <div className="flex-1 overflow-y-auto p-4 min-h-0 bg-gradient-to-br from-white/80 to-blue-50/80 dark:from-gray-900/60 dark:to-indigo-950/60 backdrop-blur-sm rounded-t-lg">
               <InterviewTranscript messages={interviewMessages} />
