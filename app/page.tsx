@@ -13,6 +13,11 @@ import { LeftSection } from "@/components/left-section"
 import { PauseButton } from "@/components/pause-button"
 import { LandingPage } from "@/components/landing-page"
 import { JobInfoSidebar } from "@/components/job-info-sidebar"
+import { useAuth } from "@/contexts/auth-context"
+import { AuthModal } from "@/components/auth/auth-modal"
+import { UpgradeModal } from "@/components/subscription/upgrade-modal"
+import { InterviewNotification } from "@/components/interview-notification"
+
 
 // Import Conversation type from the same place the hook is using it
 import type { Conversation } from "@/lib/conversations"
@@ -51,6 +56,18 @@ const mockJobData: JobDetails = {
 };
 
 const App: React.FC = () => {
+  // Auth Context
+  const { 
+    user, 
+    dbUser, 
+    loading: authLoading,
+    canUseTokens,
+    updateTokenCount,
+    canStartInterview,
+    completeInterview,
+    getRemainingInterviews
+  } = useAuth();
+  
   // AI speaking state
   const [aiSpeaking, setAiSpeaking] = useState(false)
   
@@ -59,6 +76,8 @@ const App: React.FC = () => {
     isDevelopment ? 'interview' : 'landing'
   )
   const [showSetupModal, setShowSetupModal] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [setupComplete, setSetupComplete] = useState(isDevelopment)
   
   // View state for left section
@@ -72,6 +91,12 @@ const App: React.FC = () => {
   
   // Add interview messages state
   const [interviewMessages, setInterviewMessages] = useState<Conversation[]>([])
+
+  // Add interview tracking states
+  const [interviewStartTime, setInterviewStartTime] = useState<Date | null>(null)
+  const [interviewDuration, setInterviewDuration] = useState(0)
+  const [conversationCount, setConversationCount] = useState(0)
+  const interviewTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Add audio stream reference
   const audioStreamRef = useRef<MediaStream | null>(null)
@@ -91,17 +116,94 @@ const App: React.FC = () => {
     currentVolume,
     startSession,
     sendTextMessage,
+    sendSystemMessage,
     conversation,
     pauseSession,
     resumeSession,
     isPaused: webRTCIsPaused
   } = useWebRTCAudioSession(selectedVoice, tools)
 
+  // Interview duration timer
+  useEffect(() => {
+    if (isSessionActive && interviewStartTime) {
+      interviewTimerRef.current = setInterval(() => {
+        setInterviewDuration(prev => prev + 1)
+      }, 1000)
+    } else {
+      if (interviewTimerRef.current) {
+        clearInterval(interviewTimerRef.current)
+        interviewTimerRef.current = null
+      }
+    }
+
+    return () => {
+      if (interviewTimerRef.current) {
+        clearInterval(interviewTimerRef.current)
+      }
+    }
+  }, [isSessionActive, interviewStartTime])
+
+  // Track conversation length and auto-conclude if needed
+  useEffect(() => {
+    if (conversation) {
+      const userMessages = conversation.filter(msg => msg.role === 'user' && msg.isFinal)
+      const assistantMessages = conversation.filter(msg => msg.role === 'assistant' && msg.isFinal)
+      
+      setConversationCount(userMessages.length + assistantMessages.length)
+      
+      // Auto-conclude interview after 10 questions or 30 minutes
+      const shouldAutoEnd = userMessages.length >= 10 || interviewDuration >= 1800 // 30 minutes
+      
+      // Warning when approaching limits
+      const isApproachingEnd = userMessages.length >= 8 || interviewDuration >= 1500 // 25 minutes
+      
+      if (shouldAutoEnd && isSessionActive && userMessages.length > 0) {
+        // Send conclusion message to AI
+        const conclusionMessage = `
+        INTERVIEW CONCLUSION INSTRUCTION:
+        This interview has been running for ${Math.floor(interviewDuration / 60)} minutes with ${userMessages.length} questions asked.
+        
+        Please naturally conclude the interview by:
+        1. Thanking the candidate for their time
+        2. Briefly summarizing their key strengths you noticed
+        3. Letting them know the next steps (e.g., "We'll be in touch soon within a few days")
+        4. Ending with a professional closing like "Thank you again for your time today"
+        
+        Keep your conclusion concise and professional. This should be your final message.
+        `
+        
+        setTimeout(() => {
+          sendSystemMessage(conclusionMessage)
+        }, 1000)
+        
+        // Auto-end the interview after conclusion
+        setTimeout(() => {
+          if (isSessionActive) {
+            handleStartStopClick()
+          }
+        }, 10000) // Give 10 seconds for AI to conclude
+      } else if (isApproachingEnd && isSessionActive && userMessages.length > 0) {
+        // Send a subtle signal to wrap up soon
+        const wrapUpMessage = `
+        INTERVIEW WRAP-UP SIGNAL:
+        You've asked ${userMessages.length} questions and the interview has been running for ${Math.floor(interviewDuration / 60)} minutes.
+        
+        Ask 1-2 more meaningful questions, then begin naturally wrapping up the interview.
+        Don't mention time limits to the candidate.
+        `
+        
+        setTimeout(() => {
+          sendSystemMessage(wrapUpMessage)
+        }, 1000)
+      }
+    }
+  }, [conversation, interviewDuration, isSessionActive, sendSystemMessage, handleStartStopClick])
+
   // Register global reset callback
   useEffect(() => {
     // Define the reset function
     const resetFunction = () => {
-      // Reset all state
+      // Reset all state including interview tracking
       setResumeData(null);
       setJobData(null);
       setSetupComplete(false);
@@ -109,6 +211,15 @@ const App: React.FC = () => {
       setIsReady(false);
       setLeftView('welcome');
       setAppState('landing');
+      setInterviewStartTime(null);
+      setInterviewDuration(0);
+      setConversationCount(0);
+      
+      // Clear timer
+      if (interviewTimerRef.current) {
+        clearInterval(interviewTimerRef.current);
+        interviewTimerRef.current = null;
+      }
       
       // If session is active, stop it
       if (isSessionActive) {
@@ -130,6 +241,26 @@ const App: React.FC = () => {
       setJobData(mockJobData);
     }
   }, [resumeData, jobData]);
+
+  // Reset app state when user signs out
+  useEffect(() => {
+    if (!authLoading && !user) {
+      // User has signed out, reset to landing page
+      setAppState('landing');
+      setShowSetupModal(false);
+      setShowAuthModal(false);
+      setSetupComplete(false);
+      setIsReady(false);
+      setLeftView('welcome');
+      setResumeData(null);
+      setJobData(null);
+      
+      // If session is active, stop it
+      if (isSessionActive) {
+        handleStartStopClick();
+      }
+    }
+  }, [user, authLoading, isSessionActive, handleStartStopClick]);
   
   // Helper function to bypass setup in development mode
   const bypassSetup = () => {
@@ -138,6 +269,18 @@ const App: React.FC = () => {
     setShowSetupModal(false);
     setSetupComplete(true);
     setAppState('interview');
+  };
+
+  // Map voice codes to interviewer names
+  const getInterviewerName = (voiceCode: string): string => {
+    const voiceNames = {
+      'ash': 'Dwayne "The Rock" Johnson and I am the worst, most demonic fucker you have ever seen',
+      'ballad': 'Jordan',
+      'coral': 'Morgan',
+      'sage': 'Taylor',
+      'verse': 'Casey'
+    };
+    return voiceNames[voiceCode as keyof typeof voiceNames] || 'Alex';
   };
 
   // Use WebRTC hook's built-in pause/resume functionality instead of our manual implementation
@@ -208,17 +351,48 @@ const App: React.FC = () => {
         // Stop the WebRTC audio session (voice recognition and AI stream)
         handleStartStopClick();
         
+        // Reset interview tracking
+        setInterviewStartTime(null);
+        setInterviewDuration(0);
+        setConversationCount(0);
+        
+        // Clear timer
+        if (interviewTimerRef.current) {
+          clearInterval(interviewTimerRef.current);
+          interviewTimerRef.current = null;
+        }
+        
         // Update UI state to show interview is not active
         setIsReady(false);
         
         // Reset AI speaking state
         setAiSpeaking(false);
+
+        // Mark interview as completed (deduct 1 interview for free users)
+        if (user) {
+          await completeInterview();
+          const remaining = getRemainingInterviews();
+          console.log(`Interview completed. ${remaining === Infinity ? 'Unlimited' : remaining} interviews remaining.`);
+        }
         
-        console.log("Interview paused: camera, voice recognition, and AI stream stopped");
+        console.log("Interview ended: camera, voice recognition, and AI stream stopped");
       } catch (error) {
         console.error("Error stopping interview:", error);
       }
     } else {
+      // Check authentication first
+      if (!user) {
+        setShowAuthModal(true);
+        return;
+      }
+
+      // Check interview limits
+      if (!canStartInterview()) {
+        // Show upgrade modal instead of alert
+        setShowUpgradeModal(true);
+        return;
+      }
+
       // If session is not active, ensure setup is complete then start
       if (!setupComplete) {
         setShowSetupModal(true);
@@ -231,72 +405,162 @@ const App: React.FC = () => {
         setIsReady(true);
         setLeftView('webcam');
         
+        // Start interview tracking
+        setInterviewStartTime(new Date());
+        setInterviewDuration(0);
+        setConversationCount(0);
+        
         console.log("Interview started: camera, voice recognition, and AI stream activated");
         
-        // Send context message if available
+        // Enhanced context messages with interview structure
         if (resumeData && jobData) {
+          const interviewerName = getInterviewerName(selectedVoice);
           const contextMessage = `
-You are conducting a realistic job interview. I'm applying for a ${jobData.jobTitle} position at ${jobData.companyName}.
+You are conducting a realistic job interview for a ${jobData.jobTitle} position at ${jobData.companyName}.
 
-Here's my resume information: ${JSON.stringify(resumeData, null, 2)}
+YOUR INTERVIEWER IDENTITY:
+- Your name is ${interviewerName}
+- You are a professional interviewer at ${jobData.companyName}
+- Use your name when introducing yourself
 
-Here's the job description:
+CANDIDATE INFORMATION:
+${JSON.stringify(resumeData, null, 2)}
+
+JOB DESCRIPTION:
 ${jobData.jobDescription}
 
-IMPORTANT INTERVIEW GUIDELINES:
-- Ask ONE question at a time and wait for my response
-- Be conversational and natural like a real interviewer
-- Start with a warm greeting and one introductory question
-- Follow up based on my answers before moving to the next topic
-- Don't list multiple questions in a single response
-- Keep questions focused and specific
-- Act like you're having a real conversation, not conducting a survey
+INTERVIEW STRUCTURE AND GUIDELINES:
+1. INTRODUCTION PHASE (2-3 minutes):
+   - Warm greeting and brief self-introduction using your name ${interviewerName}
+   - Thank them for their interest
+   - Ask one opening question about their interest in the role
 
-Please start by introducing yourself and asking your first question.`;
+2. MAIN INTERVIEW PHASE (8-12 questions):
+   - Ask relevant questions based on their background and the job requirements
+   - Follow up on their answers naturally
+   - Cover key areas: experience, skills, problem-solving, cultural fit
+   - Ask ONE question at a time and wait for their response
+
+3. CONCLUSION PHASE (after 10 questions or 45 minutes):
+   - Thank them for their time
+   - Summarize 2-3 key strengths you noticed
+   - Mention next steps ("We'll be in touch soon")
+   - Professional closing
+
+CONVERSATION RULES:
+- Be conversational and natural like a real human interviewer
+- Ask follow-up questions based on their specific answers
+- Don't list multiple questions in a single response
+- Keep questions focused and relevant to the role
+- Show genuine interest in their responses
+- Maintain a professional but friendly tone
+
+INTERVIEW CONCLUSION:
+- After 10 meaningful questions or if the conversation naturally reaches a good stopping point, begin wrapping up
+- Don't continue asking questions indefinitely
+- End with a clear, professional conclusion
+
+Begin with a warm greeting, introduce yourself as ${interviewerName}, and ask your first question.`;
           
           setTimeout(() => {
-            sendTextMessage(contextMessage);
+            sendSystemMessage(contextMessage);
           }, 1000);
         } else if (resumeData) {
+          const interviewerName = getInterviewerName(selectedVoice);
           const contextMessage = `
-You are conducting a realistic job interview. 
+You are conducting a realistic job interview.
 
-Here's my resume information: ${JSON.stringify(resumeData, null, 2)}
+YOUR INTERVIEWER IDENTITY:
+- Your name is ${interviewerName}
+- You are a professional interviewer
+- Use your name when introducing yourself
 
-IMPORTANT INTERVIEW GUIDELINES:
-- Ask ONE question at a time and wait for my response
-- Be conversational and natural like a real interviewer
-- Start with a warm greeting and one introductory question
-- Follow up based on my answers before moving to the next topic
+CANDIDATE INFORMATION:
+${JSON.stringify(resumeData, null, 2)}
+
+INTERVIEW STRUCTURE AND GUIDELINES:
+1. INTRODUCTION PHASE (2-3 minutes):
+   - Warm greeting and brief self-introduction using your name ${interviewerName}
+   - Ask one opening question about their background
+
+2. MAIN INTERVIEW PHASE (8-12 questions):
+   - Ask relevant questions based on their background
+   - Follow up on their answers naturally
+   - Cover key areas: experience, skills, problem-solving
+   - Ask ONE question at a time and wait for their response
+
+3. CONCLUSION PHASE (after 10 questions or 45 minutes):
+   - Thank them for their time
+   - Summarize 2-3 key strengths you noticed
+   - Mention next steps ("We'll be in touch soon")
+   - Professional closing
+
+CONVERSATION RULES:
+- Be conversational and natural like a real human interviewer
+- Ask follow-up questions based on their specific answers
 - Don't list multiple questions in a single response
-- Keep questions focused and specific
-- Act like you're having a real conversation, not conducting a survey
+- Keep questions focused and relevant
+- Show genuine interest in their responses
+- Maintain a professional but friendly tone
 
-Please start by introducing yourself and asking your first question about my background.`;
+INTERVIEW CONCLUSION:
+- After 10 meaningful questions or if the conversation naturally reaches a good stopping point, begin wrapping up
+- Don't continue asking questions indefinitely
+- End with a clear, professional conclusion
+
+Begin with a warm greeting, introduce yourself as ${interviewerName}, and ask your first question about their background.`;
           
           setTimeout(() => {
-            sendTextMessage(contextMessage);
+            sendSystemMessage(contextMessage);
           }, 1000);
         } else if (jobData) {
+          const interviewerName = getInterviewerName(selectedVoice);
           const contextMessage = `
-You are conducting a realistic job interview. I'm applying for a ${jobData.jobTitle} position at ${jobData.companyName}.
+You are conducting a realistic job interview for a ${jobData.jobTitle} position at ${jobData.companyName}.
 
-Here's the job description:
+YOUR INTERVIEWER IDENTITY:
+- Your name is ${interviewerName}
+- You are a professional interviewer at ${jobData.companyName}
+- Use your name when introducing yourself
+
+JOB DESCRIPTION:
 ${jobData.jobDescription}
 
-IMPORTANT INTERVIEW GUIDELINES:
-- Ask ONE question at a time and wait for my response
-- Be conversational and natural like a real interviewer
-- Start with a warm greeting and one introductory question
-- Follow up based on my answers before moving to the next topic
-- Don't list multiple questions in a single response
-- Keep questions focused and specific
-- Act like you're having a real conversation, not conducting a survey
+INTERVIEW STRUCTURE AND GUIDELINES:
+1. INTRODUCTION PHASE (2-3 minutes):
+   - Warm greeting and brief self-introduction using your name ${interviewerName}
+   - Thank them for their interest
+   - Ask one opening question about their interest in this role
 
-Please start by introducing yourself and asking your first question about my interest in this role.`;
+2. MAIN INTERVIEW PHASE (8-12 questions):
+   - Ask relevant questions based on the job requirements
+   - Follow up on their answers naturally
+   - Cover key areas: experience, skills, problem-solving, cultural fit
+   - Ask ONE question at a time and wait for their response
+
+3. CONCLUSION PHASE (after 10 questions or 45 minutes):
+   - Thank them for their time
+   - Summarize 2-3 key strengths you noticed
+   - Mention next steps ("We'll be in touch soon")
+   - Professional closing
+
+CONVERSATION RULES:
+- Be conversational and natural like a real human interviewer
+- Ask follow-up questions based on their specific answers
+- Don't list multiple questions in a single response
+- Keep questions focused and relevant to the role
+- Show genuine interest in their responses
+- Maintain a professional but friendly tone
+
+INTERVIEW CONCLUSION:
+- After 10 meaningful questions or if the conversation naturally reaches a good stopping point, begin wrapping up
+- Don't continue asking questions indefinitely
+- End with a clear, professional conclusion
+
+Begin with a warm greeting, introduce yourself as ${interviewerName}, and ask your first question about their interest in this role.`;
           
           setTimeout(() => {
-            sendTextMessage(contextMessage);
+            sendSystemMessage(contextMessage);
           }, 1000);
         }
       } catch (error) {
@@ -402,6 +666,10 @@ Please start by introducing yourself and asking your first question about my int
 
   // Handle get started button
   const handleGetStarted = () => {
+    if (!user) {
+      setShowAuthModal(true)
+      return
+    }
     setAppState('setup')
     setShowSetupModal(true)
   }
@@ -416,16 +684,36 @@ Please start by introducing yourself and asking your first question about my int
     setAppState('interview');
   }
 
+  // Show loading while auth is initializing
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-600">Initializing authentication...</p>
+            <p className="text-xs text-gray-400">
+              User: {user ? '✓ Authenticated' : '⏳ Checking...'}
+            </p>
+            <p className="text-xs text-gray-400">
+              Profile: {dbUser ? '✓ Loaded' : '⏳ Loading...'}
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Render different content based on app state
   if (appState === 'landing') {
     return <LandingPage onGetStarted={handleGetStarted} />
   }
 
   return (
-    <div className="flex flex-col w-full h-[calc(100vh-48px)] bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-indigo-950 p-4 pt-4 pb-4">
+    <div className="w-full bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-indigo-950 p-4 pt-2">
       {/* Development mode controls */}
       {isDevelopment && (
-        <div className="fixed top-14 right-4 z-[100]">
+        <div className="fixed top-16 right-4 z-[100]">
           <Button 
             size="sm" 
             variant={setupComplete ? "default" : "outline"}
@@ -440,14 +728,24 @@ Please start by introducing yourself and asking your first question about my int
         </div>
       )}
 
-      <div className="flex flex-col h-full overflow-hidden">
-        <div className="grid grid-rows-[1fr] grid-cols-[300px,1fr,400px] h-full gap-4">
+      <div className="w-full">
+        <div className="grid grid-cols-[300px,1fr,400px] gap-4">
           {/* Job Info Sidebar */}
           {jobData && (
-            <JobInfoSidebar 
-              jobData={jobData} 
-              resumeData={resumeData}
-            />
+            <div className="space-y-4">
+              <JobInfoSidebar 
+                jobData={jobData} 
+                resumeData={resumeData}
+                interviewDuration={interviewDuration}
+                questionCount={Math.floor(conversationCount / 2)}
+                isInterviewActive={isSessionActive}
+                interviewPhase={
+                  !isSessionActive && interviewDuration > 0 ? 'ended' :
+                  Math.floor(conversationCount / 2) >= 8 ? 'conclusion' :
+                  Math.floor(conversationCount / 2) >= 2 ? 'main' : 'introduction'
+                }
+              />
+            </div>
           )}
 
           {/* Camera Section (middle) */}
@@ -462,11 +760,25 @@ Please start by introducing yourself and asking your first question about my int
           />
 
           {/* AI Assistant (right) */}
-          <div className="flex flex-col h-full rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-indigo-950 shadow-md overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-4 min-h-0 bg-gradient-to-br from-white/80 to-blue-50/80 dark:from-gray-900/60 dark:to-indigo-950/60 backdrop-blur-sm rounded-t-lg">
+          <div className="flex flex-col min-h-[600px] max-h-[calc(100vh-100px)] rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-indigo-950 shadow-md">
+            <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-br from-white/80 to-blue-50/80 dark:from-gray-900/60 dark:to-indigo-950/60 backdrop-blur-sm rounded-t-lg">
+              {/* Interview Notifications */}
+              <InterviewNotification 
+                show={isSessionActive && Math.floor(conversationCount / 2) >= 8 && Math.floor(conversationCount / 2) < 10}
+                type="approaching-end"
+                questionCount={Math.floor(conversationCount / 2)}
+                duration={interviewDuration}
+              />
+              <InterviewNotification 
+                show={isSessionActive && Math.floor(conversationCount / 2) >= 10}
+                type="concluding"
+                questionCount={Math.floor(conversationCount / 2)}
+                duration={interviewDuration}
+              />
+              
               <InterviewTranscript messages={interviewMessages} />
             </div>
-            <div className="border-t border-blue-100 dark:border-indigo-900/50 p-4 pt-8">
+            <div className="border-t border-blue-100 dark:border-indigo-900/50 p-4 pt-8 bg-white/80 dark:bg-gray-900/80 rounded-b-lg">
               <div className="flex flex-col items-center">
                 <AISpeechIndicator 
                   isSpeaking={aiSpeaking} 
@@ -515,6 +827,18 @@ Please start by introducing yourself and asking your first question about my int
           onJobSubmit={handleJobSubmit}
         />
       )}
+
+      {/* Auth Modal */}
+      <AuthModal 
+        open={showAuthModal} 
+        onOpenChange={setShowAuthModal} 
+      />
+
+      {/* Upgrade Modal */}
+      <UpgradeModal 
+        open={showUpgradeModal} 
+        onOpenChange={setShowUpgradeModal} 
+      />
     </div>
   )
 }

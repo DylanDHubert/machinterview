@@ -8,6 +8,7 @@ import { siteConfig } from "@/config/site";
 import { Toaster } from "@/components/ui/sonner"
 import { Analytics } from "@vercel/analytics/react"
 import { TranslationsProvider } from "@/components/translations-context"
+import { AuthProvider } from "@/contexts/auth-context"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,15 +49,17 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <TranslationsProvider>
-            <div className="flex flex-col min-h-dvh w-full bg-background">
-              <Header />
-              <main className="flex-1 w-full">
-                {children}
-              </main>
-            </div>
-            <Toaster />
-          </TranslationsProvider>
+          <AuthProvider>
+            <TranslationsProvider>
+              <div className="flex flex-col min-h-dvh w-full bg-background">
+                <Header />
+                <main className="flex-1 w-full pt-0">
+                  {children}
+                </main>
+              </div>
+              <Toaster />
+            </TranslationsProvider>
+          </AuthProvider>
         </ThemeProvider>
         <Analytics />
       </body>

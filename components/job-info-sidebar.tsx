@@ -5,15 +5,47 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Briefcase, Building2, FileText } from 'lucide-react'
 import { JobDetails } from './job-description'
+import { InterviewProgress } from './interview-progress'
+import { InterviewSummary } from './interview-summary'
 
 interface JobInfoSidebarProps {
   jobData: JobDetails
   resumeData?: Record<string, unknown> | null
+  // Interview progress props
+  interviewDuration?: number
+  questionCount?: number
+  isInterviewActive?: boolean
+  interviewPhase?: 'introduction' | 'main' | 'conclusion' | 'ended'
 }
 
-export function JobInfoSidebar({ jobData, resumeData }: JobInfoSidebarProps) {
+export function JobInfoSidebar({ 
+  jobData, 
+  resumeData, 
+  interviewDuration = 0, 
+  questionCount = 0, 
+  isInterviewActive = false, 
+  interviewPhase = 'introduction' 
+}: JobInfoSidebarProps) {
   return (
     <div className="w-full h-full bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 space-y-4">
+      {/* Interview Progress */}
+      {isInterviewActive && (
+        <InterviewProgress 
+          duration={interviewDuration}
+          questionCount={questionCount}
+          isActive={isInterviewActive}
+          phase={interviewPhase}
+        />
+      )}
+      
+      {/* Interview Summary */}
+      {!isInterviewActive && interviewDuration > 0 && (
+        <InterviewSummary 
+          duration={interviewDuration}
+          questionCount={questionCount}
+          interviewPhase={interviewPhase}
+        />
+      )}
       {/* Job Information */}
       <Card>
         <CardHeader className="pb-3">

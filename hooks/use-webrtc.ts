@@ -30,6 +30,7 @@ interface UseWebRTCAudioSessionReturn {
   currentVolume: number;
   conversation: Conversation[];
   sendTextMessage: (text: string) => void;
+  sendSystemMessage: (text: string) => void;
   pauseSession: () => void;
   resumeSession: () => void;
   togglePause: () => void;
@@ -563,6 +564,38 @@ export default function useWebRTCAudioSession(
     dataChannelRef.current.send(JSON.stringify(response));
   }
 
+  /**
+   * Send a system message through the data channel without adding it to the conversation
+   */
+  function sendSystemMessage(text: string) {
+    if (!dataChannelRef.current || dataChannelRef.current.readyState !== "open") {
+      console.error("Data channel not ready");
+      return;
+    }
+
+    // Send message through data channel without adding to conversation
+    const message = {
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: text,
+          },
+        ],
+      },
+    };
+
+    const response = {
+      type: "response.create",
+    };
+    
+    dataChannelRef.current.send(JSON.stringify(message));
+    dataChannelRef.current.send(JSON.stringify(response));
+  }
+
   const pauseSession = useCallback(() => {
     if (!audioStreamRef.current) return;
     
@@ -614,6 +647,7 @@ export default function useWebRTCAudioSession(
     currentVolume,
     conversation,
     sendTextMessage,
+    sendSystemMessage,
     pauseSession,
     resumeSession,
     togglePause,

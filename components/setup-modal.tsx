@@ -1,8 +1,9 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogPortal, DialogOverlay } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogPortal, DialogOverlay, DialogTitle } from "@/components/ui/dialog"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
+import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
 import { Button } from "@/components/ui/button"
 import { DocumentUpload } from "@/components/document-upload"
 import { JobDescription, JobDetails } from "@/components/job-description"
@@ -28,6 +29,9 @@ const CustomDialogContent = React.forwardRef<
       aria-describedby="dialog-description"
       {...props}
     >
+      <VisuallyHidden.Root asChild>
+        <DialogTitle>Interview Setup</DialogTitle>
+      </VisuallyHidden.Root>
       {children}
     </DialogPrimitive.Content>
   </DialogPortal>

@@ -23,7 +23,7 @@ export function LeftSection({ view, isReady, onStartInterview, transcript, mockD
   switch (view) {
     case 'welcome':
       return (
-        <div className="flex flex-col justify-center items-center h-full rounded-lg overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-indigo-950 p-6">
+        <div className="flex flex-col justify-center items-center min-h-[500px] rounded-lg overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-indigo-950 p-6">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -89,7 +89,7 @@ export function LeftSection({ view, isReady, onStartInterview, transcript, mockD
       
     case 'webcam':
       return (
-        <div className="flex flex-col h-full rounded-lg overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-indigo-950">
+        <div className="flex flex-col min-h-[500px] rounded-lg overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-indigo-950">
           {/* Only show header when interview is not active */}
           {!isReady && (
             <div className="p-4">
@@ -115,7 +115,7 @@ export function LeftSection({ view, isReady, onStartInterview, transcript, mockD
       
     case 'results':
       return (
-        <div className="flex flex-col h-full p-6 space-y-6 rounded-lg overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-indigo-950">
+        <div className="flex flex-col min-h-[500px] p-6 space-y-6 rounded-lg overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-indigo-950">
           <div className="space-y-2">
             <h2 className="text-2xl font-bold tracking-tight">Interview Results</h2>
             <p className="text-muted-foreground">Here's how you performed in your interview</p>
