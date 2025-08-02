@@ -95,7 +95,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
             size="lg"
             className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-8 py-6 text-lg font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
           >
-            Get Started
+            Start Interview
           </Button>
         </motion.div>
 
