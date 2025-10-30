@@ -97,6 +97,11 @@ const App: React.FC = () => {
   const [interviewDuration, setInterviewDuration] = useState(0)
   const [conversationCount, setConversationCount] = useState(0)
   const interviewTimerRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Add conclusion tracking to prevent duplicate messages
+  const [hasSentWrapUpMessage, setHasSentWrapUpMessage] = useState(false)
+  const [hasSentConclusionMessage, setHasSentConclusionMessage] = useState(false)
+  const autoEndTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Add audio stream reference
   const audioStreamRef = useRef<MediaStream | null>(null)
@@ -157,47 +162,71 @@ const App: React.FC = () => {
       // Warning when approaching limits
       const isApproachingEnd = userMessages.length >= 8 || interviewDuration >= 1500 // 25 minutes
       
-      if (shouldAutoEnd && isSessionActive && userMessages.length > 0) {
-        // Send conclusion message to AI
-        const conclusionMessage = `
-        INTERVIEW CONCLUSION INSTRUCTION:
-        This interview has been running for ${Math.floor(interviewDuration / 60)} minutes with ${userMessages.length} questions asked.
-        
-        Please naturally conclude the interview by:
-        1. Thanking the candidate for their time
-        2. Briefly summarizing their key strengths you noticed
-        3. Letting them know the next steps (e.g., "We'll be in touch soon within a few days")
-        4. Ending with a professional closing like "Thank you again for your time today"
-        
-        Keep your conclusion concise and professional. This should be your final message.
-        `
-        
-        setTimeout(() => {
+      // Check if AI is currently speaking (has an incomplete assistant message)
+      const isAiCurrentlySpeaking = conversation.some(
+        msg => msg.role === 'assistant' && !msg.isFinal
+      )
+      
+      // IMPROVED: Only send conclusion if AI is not currently speaking and we haven't sent it yet
+      if (shouldAutoEnd && isSessionActive && userMessages.length > 0 && !hasSentConclusionMessage) {
+        // Wait for AI to finish speaking before sending conclusion
+        if (!isAiCurrentlySpeaking) {
+          console.log("Interview limit reached. Sending conclusion message...");
+          setHasSentConclusionMessage(true)
+          
+          const conclusionMessage = `
+INTERVIEW CONCLUSION INSTRUCTION:
+This interview has been running for ${Math.floor(interviewDuration / 60)} minutes with ${userMessages.length} questions asked.
+
+Please naturally conclude the interview by:
+1. Thanking the candidate for their time
+2. Briefly summarizing their key strengths you noticed
+3. Letting them know the next steps (e.g., "We'll be in touch soon within a few days")
+4. Ending with a professional closing like "Thank you again for your time today"
+
+Keep your conclusion concise and professional. This should be your final message.
+`
+          
+          // Send immediately since AI is not speaking
           sendSystemMessage(conclusionMessage)
-        }, 1000)
-        
-        // Auto-end the interview after conclusion
-        setTimeout(() => {
-          if (isSessionActive) {
-            handleStartStopClick()
+          
+          // Auto-end the interview after giving AI time to conclude
+          // Clear any existing timer first
+          if (autoEndTimerRef.current) {
+            clearTimeout(autoEndTimerRef.current)
           }
-        }, 10000) // Give 10 seconds for AI to conclude
-      } else if (isApproachingEnd && isSessionActive && userMessages.length > 0) {
-        // Send a subtle signal to wrap up soon
-        const wrapUpMessage = `
-        INTERVIEW WRAP-UP SIGNAL:
-        You've asked ${userMessages.length} questions and the interview has been running for ${Math.floor(interviewDuration / 60)} minutes.
-        
-        Ask 1-2 more meaningful questions, then begin naturally wrapping up the interview.
-        Don't mention time limits to the candidate.
-        `
-        
-        setTimeout(() => {
+          
+          autoEndTimerRef.current = setTimeout(() => {
+            if (isSessionActive) {
+              console.log("Auto-ending interview after conclusion");
+              handleStartStopClick()
+            }
+          }, 15000) // Give 15 seconds for AI to conclude gracefully
+        } else {
+          console.log("Waiting for AI to finish speaking before sending conclusion...");
+        }
+      } 
+      // IMPROVED: Only send wrap-up if AI is not speaking and we haven't sent it yet
+      else if (isApproachingEnd && isSessionActive && userMessages.length > 0 && !hasSentWrapUpMessage && !hasSentConclusionMessage) {
+        if (!isAiCurrentlySpeaking) {
+          console.log("Interview approaching end. Sending wrap-up signal...");
+          setHasSentWrapUpMessage(true)
+          
+          const wrapUpMessage = `
+INTERVIEW WRAP-UP SIGNAL:
+You've asked ${userMessages.length} questions and the interview has been running for ${Math.floor(interviewDuration / 60)} minutes.
+
+Ask 1-2 more meaningful questions, then begin naturally wrapping up the interview.
+Don't mention time limits to the candidate.
+`
+          
           sendSystemMessage(wrapUpMessage)
-        }, 1000)
+        } else {
+          console.log("Waiting for AI to finish speaking before sending wrap-up signal...");
+        }
       }
     }
-  }, [conversation, interviewDuration, isSessionActive, sendSystemMessage, handleStartStopClick])
+  }, [conversation, interviewDuration, isSessionActive, sendSystemMessage, handleStartStopClick, hasSentWrapUpMessage, hasSentConclusionMessage])
 
   // Register global reset callback
   useEffect(() => {
@@ -215,10 +244,18 @@ const App: React.FC = () => {
       setInterviewDuration(0);
       setConversationCount(0);
       
-      // Clear timer
+      // Reset conclusion flags
+      setHasSentWrapUpMessage(false);
+      setHasSentConclusionMessage(false);
+      
+      // Clear timers
       if (interviewTimerRef.current) {
         clearInterval(interviewTimerRef.current);
         interviewTimerRef.current = null;
+      }
+      if (autoEndTimerRef.current) {
+        clearTimeout(autoEndTimerRef.current);
+        autoEndTimerRef.current = null;
       }
       
       // If session is active, stop it
@@ -274,7 +311,7 @@ const App: React.FC = () => {
   // Map voice codes to interviewer names
   const getInterviewerName = (voiceCode: string): string => {
     const voiceNames = {
-      'ash': 'Dwayne "The Rock" Johnson and I am the worst, most demonic fucker you have ever seen',
+      'ash': 'Alex',
       'ballad': 'Jordan',
       'coral': 'Morgan',
       'sage': 'Taylor',
@@ -356,10 +393,18 @@ const App: React.FC = () => {
         setInterviewDuration(0);
         setConversationCount(0);
         
-        // Clear timer
+        // Reset conclusion flags
+        setHasSentWrapUpMessage(false);
+        setHasSentConclusionMessage(false);
+        
+        // Clear timers
         if (interviewTimerRef.current) {
           clearInterval(interviewTimerRef.current);
           interviewTimerRef.current = null;
+        }
+        if (autoEndTimerRef.current) {
+          clearTimeout(autoEndTimerRef.current);
+          autoEndTimerRef.current = null;
         }
         
         // Update UI state to show interview is not active
@@ -400,8 +445,25 @@ const App: React.FC = () => {
       }
       
       try {
-        // Start the session
-        await startSession();
+        // Prepare session context with interview data
+        const interviewerName = getInterviewerName(selectedVoice);
+        const sessionContext = {
+          voice: selectedVoice,
+          resumeData: resumeData || null,
+          jobData: jobData || null,
+          interviewerName: interviewerName,
+          locale: 'en' // Could be dynamic based on user preference
+        };
+
+        console.log("Starting session with context:", {
+          hasResume: !!resumeData,
+          hasJob: !!jobData,
+          interviewerName,
+          voice: selectedVoice
+        });
+
+        // Start the session with context - AI gets proper instructions from the start
+        await startSession(sessionContext);
         setIsReady(true);
         setLeftView('webcam');
         
@@ -411,158 +473,12 @@ const App: React.FC = () => {
         setConversationCount(0);
         
         console.log("Interview started: camera, voice recognition, and AI stream activated");
+        console.log("AI received interview instructions at session initialization");
         
-        // Enhanced context messages with interview structure
-        if (resumeData && jobData) {
-          const interviewerName = getInterviewerName(selectedVoice);
-          const contextMessage = `
-You are conducting a realistic job interview for a ${jobData.jobTitle} position at ${jobData.companyName}.
-
-YOUR INTERVIEWER IDENTITY:
-- Your name is ${interviewerName}
-- You are a professional interviewer at ${jobData.companyName}
-- Use your name when introducing yourself
-
-CANDIDATE INFORMATION:
-${JSON.stringify(resumeData, null, 2)}
-
-JOB DESCRIPTION:
-${jobData.jobDescription}
-
-INTERVIEW STRUCTURE AND GUIDELINES:
-1. INTRODUCTION PHASE (2-3 minutes):
-   - Warm greeting and brief self-introduction using your name ${interviewerName}
-   - Thank them for their interest
-   - Ask one opening question about their interest in the role
-
-2. MAIN INTERVIEW PHASE (8-12 questions):
-   - Ask relevant questions based on their background and the job requirements
-   - Follow up on their answers naturally
-   - Cover key areas: experience, skills, problem-solving, cultural fit
-   - Ask ONE question at a time and wait for their response
-
-3. CONCLUSION PHASE (after 10 questions or 45 minutes):
-   - Thank them for their time
-   - Summarize 2-3 key strengths you noticed
-   - Mention next steps ("We'll be in touch soon")
-   - Professional closing
-
-CONVERSATION RULES:
-- Be conversational and natural like a real human interviewer
-- Ask follow-up questions based on their specific answers
-- Don't list multiple questions in a single response
-- Keep questions focused and relevant to the role
-- Show genuine interest in their responses
-- Maintain a professional but friendly tone
-
-INTERVIEW CONCLUSION:
-- After 10 meaningful questions or if the conversation naturally reaches a good stopping point, begin wrapping up
-- Don't continue asking questions indefinitely
-- End with a clear, professional conclusion
-
-Begin with a warm greeting, introduce yourself as ${interviewerName}, and ask your first question.`;
-          
-          setTimeout(() => {
-            sendSystemMessage(contextMessage);
-          }, 1000);
-        } else if (resumeData) {
-          const interviewerName = getInterviewerName(selectedVoice);
-          const contextMessage = `
-You are conducting a realistic job interview.
-
-YOUR INTERVIEWER IDENTITY:
-- Your name is ${interviewerName}
-- You are a professional interviewer
-- Use your name when introducing yourself
-
-CANDIDATE INFORMATION:
-${JSON.stringify(resumeData, null, 2)}
-
-INTERVIEW STRUCTURE AND GUIDELINES:
-1. INTRODUCTION PHASE (2-3 minutes):
-   - Warm greeting and brief self-introduction using your name ${interviewerName}
-   - Ask one opening question about their background
-
-2. MAIN INTERVIEW PHASE (8-12 questions):
-   - Ask relevant questions based on their background
-   - Follow up on their answers naturally
-   - Cover key areas: experience, skills, problem-solving
-   - Ask ONE question at a time and wait for their response
-
-3. CONCLUSION PHASE (after 10 questions or 45 minutes):
-   - Thank them for their time
-   - Summarize 2-3 key strengths you noticed
-   - Mention next steps ("We'll be in touch soon")
-   - Professional closing
-
-CONVERSATION RULES:
-- Be conversational and natural like a real human interviewer
-- Ask follow-up questions based on their specific answers
-- Don't list multiple questions in a single response
-- Keep questions focused and relevant
-- Show genuine interest in their responses
-- Maintain a professional but friendly tone
-
-INTERVIEW CONCLUSION:
-- After 10 meaningful questions or if the conversation naturally reaches a good stopping point, begin wrapping up
-- Don't continue asking questions indefinitely
-- End with a clear, professional conclusion
-
-Begin with a warm greeting, introduce yourself as ${interviewerName}, and ask your first question about their background.`;
-          
-          setTimeout(() => {
-            sendSystemMessage(contextMessage);
-          }, 1000);
-        } else if (jobData) {
-          const interviewerName = getInterviewerName(selectedVoice);
-          const contextMessage = `
-You are conducting a realistic job interview for a ${jobData.jobTitle} position at ${jobData.companyName}.
-
-YOUR INTERVIEWER IDENTITY:
-- Your name is ${interviewerName}
-- You are a professional interviewer at ${jobData.companyName}
-- Use your name when introducing yourself
-
-JOB DESCRIPTION:
-${jobData.jobDescription}
-
-INTERVIEW STRUCTURE AND GUIDELINES:
-1. INTRODUCTION PHASE (2-3 minutes):
-   - Warm greeting and brief self-introduction using your name ${interviewerName}
-   - Thank them for their interest
-   - Ask one opening question about their interest in this role
-
-2. MAIN INTERVIEW PHASE (8-12 questions):
-   - Ask relevant questions based on the job requirements
-   - Follow up on their answers naturally
-   - Cover key areas: experience, skills, problem-solving, cultural fit
-   - Ask ONE question at a time and wait for their response
-
-3. CONCLUSION PHASE (after 10 questions or 45 minutes):
-   - Thank them for their time
-   - Summarize 2-3 key strengths you noticed
-   - Mention next steps ("We'll be in touch soon")
-   - Professional closing
-
-CONVERSATION RULES:
-- Be conversational and natural like a real human interviewer
-- Ask follow-up questions based on their specific answers
-- Don't list multiple questions in a single response
-- Keep questions focused and relevant to the role
-- Show genuine interest in their responses
-- Maintain a professional but friendly tone
-
-INTERVIEW CONCLUSION:
-- After 10 meaningful questions or if the conversation naturally reaches a good stopping point, begin wrapping up
-- Don't continue asking questions indefinitely
-- End with a clear, professional conclusion
-
-Begin with a warm greeting, introduce yourself as ${interviewerName}, and ask your first question about their interest in this role.`;
-          
-          setTimeout(() => {
-            sendSystemMessage(contextMessage);
-          }, 1000);
-        }
+        // ✅ REMOVED: Delayed context injection via setTimeout
+        // The AI now receives proper instructions from session creation via the API
+        // No race conditions, no delayed messages, no competing instructions
+        
       } catch (error) {
         console.error("Error starting interview:", error);
       }

@@ -325,12 +325,20 @@ export default function useWebRTCAudioSession(
 
   /**
    * Fetch ephemeral token from your Next.js endpoint
+   * Now accepts context to pass to the session
    */
-  async function getEphemeralToken() {
+  async function getEphemeralToken(sessionContext?: {
+    voice?: string;
+    resumeData?: Record<string, unknown> | null;
+    jobData?: any;
+    interviewerName?: string;
+    locale?: string;
+  }) {
     try {
       const response = await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sessionContext || {}),
       });
       if (!response.ok) {
         throw new Error(`Failed to get ephemeral token: ${response.status}`);
@@ -389,9 +397,15 @@ export default function useWebRTCAudioSession(
   }
 
   /**
-   * Start a new session:
+   * Start a new session with optional context
    */
-  async function startSession() {
+  async function startSession(sessionContext?: {
+    voice?: string;
+    resumeData?: Record<string, unknown> | null;
+    jobData?: any;
+    interviewerName?: string;
+    locale?: string;
+  }) {
     try {
       setStatus("Requesting microphone access...");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -399,7 +413,7 @@ export default function useWebRTCAudioSession(
       setupAudioVisualization(stream);
 
       setStatus("Fetching ephemeral token...");
-      const ephemeralToken = await getEphemeralToken();
+      const ephemeralToken = await getEphemeralToken(sessionContext);
 
       setStatus("Establishing connection...");
       const pc = new RTCPeerConnection();
@@ -447,7 +461,9 @@ export default function useWebRTCAudioSession(
       // Send SDP offer to OpenAI Realtime
       const baseUrl = "https://api.openai.com/v1/realtime";
       const model = "gpt-4o-realtime-preview-2024-12-17";
-      const response = await fetch(`${baseUrl}?model=${model}&voice=${voice}`, {
+      // Use voice from sessionContext if provided, otherwise use hook parameter
+      const voiceToUse = sessionContext?.voice || voice;
+      const response = await fetch(`${baseUrl}?model=${model}&voice=${voiceToUse}`, {
         method: "POST",
         body: offer.sdp,
         headers: {
