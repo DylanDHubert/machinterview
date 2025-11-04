@@ -1,14 +1,27 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 // Verify Supabase configuration
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables')
+  const errorMsg = 'Missing Supabase environment variables. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
+  console.error(errorMsg)
+  if (typeof window !== 'undefined') {
+    console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? 'Set' : 'Missing')
+    console.error('NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'Missing')
+  }
+  // Throw error in development to catch config issues early
+  if (process.env.NODE_ENV === 'development') {
+    throw new Error(errorMsg)
+  }
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Create client - will fail gracefully if env vars are missing
+export const supabase = createClient(
+  supabaseUrl || '',
+  supabaseAnonKey || ''
+)
 
 // Database types - we'll expand these as we build the schema
 export interface Database {

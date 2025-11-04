@@ -62,8 +62,15 @@ export async function POST(request: Request) {
                 model: "gpt-4o-realtime-preview-2024-12-17",
                 voice: voice,
                 modalities: ["audio", "text"],
-                instructions: instructions,
+                instructions: instructions + "\n\nCRITICAL INTERRUPTION PREVENTION: Always wait for the user to completely finish speaking before you respond. Never interrupt them mid-sentence. Wait for natural pauses and at least 500ms of silence before asking your next question. Be patient and let them finish their thoughts completely.",
                 tool_choice: "auto",
+                // Turn-taking configuration to prevent interruptions
+                turn_detection: {
+                    type: "server_vad",
+                    threshold: 0.5,
+                    prefix_padding_ms: 300,
+                    silence_duration_ms: 500, // Wait 500ms of silence before speaking
+                },
             }),
         });
 

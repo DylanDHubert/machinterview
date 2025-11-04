@@ -2,11 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { stripe, STRIPE_CONFIG } from '@/lib/stripe'
 import { createClient } from '@supabase/supabase-js'
 
-// Create service role client that bypasses RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Helper function to create service role client that bypasses RLS
+// Initialize lazily to avoid build-time errors when env vars aren't available
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Missing Supabase environment variables: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set')
+  }
+  
+  return createClient(supabaseUrl, supabaseKey)
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,6 +30,7 @@ export async function POST(request: NextRequest) {
     console.log('Looking for user with ID:', userId)
 
     // Get user from database using admin client (bypasses RLS)
+    const supabaseAdmin = getSupabaseAdmin()
     const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .select('*')

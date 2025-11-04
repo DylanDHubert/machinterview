@@ -216,7 +216,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
         
-        if (error.code !== 'PGRST116') { // PGRST116 is "not found"
+        // PGRST116 is "not found" - if user doesn't exist, we'll create it below
+        // PGRST301 is "permission denied" or RLS blocking - try to fetch anyway
+        if (error.code === 'PGRST301' || error.code === '42501') {
+          console.warn('RLS policy blocked query, but user might exist. Trying upsert...')
+          // Continue to upsert logic below - will handle if user exists
+        } else if (error.code !== 'PGRST116') {
           console.error('Error fetching user data:', error)
           return
         }
@@ -262,20 +267,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         console.log('Creating new user record for:', authUser?.email)
         
-        // Create user record if it doesn't exist
+        // Use upsert to handle case where user already exists (e.g., from trigger)
+        // This prevents duplicate key errors if the trigger already created the user
         const { data: newUser, error: insertError } = await supabase
           .from('users')
-          .insert({
+          .upsert({
             id: userId,
             email: authUser?.email || '',
             plan: 'free',
             token_count: 0 // New users start with 0 tokens used, so they have full allowance
+          }, {
+            onConflict: 'id'
           })
           .select()
           .single()
 
         if (insertError) {
           console.error('Error creating user record:', insertError)
+          // If upsert fails, try to fetch the user again (might have been created by trigger)
+          const { data: retryData, error: retryError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', userId)
+            .single()
+          
+          if (!retryError && retryData) {
+            console.log('User found after upsert error, using existing record')
+            setDbUser(retryData)
+          }
         } else {
           console.log('New user created successfully:', newUser)
           setDbUser(newUser)

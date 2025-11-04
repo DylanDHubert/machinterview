@@ -39,7 +39,19 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       const { error } = await signIn(signInData.email, signInData.password)
       
       if (error) {
-        setError(error.message)
+        // Show more specific error messages
+        let errorMessage = error.message || 'Failed to sign in'
+        
+        // Handle common Supabase errors
+        if (error.message?.includes('fetch')) {
+          errorMessage = 'Network error: Please check your internet connection and ensure Supabase is configured correctly.'
+        } else if (error.message?.includes('Invalid login credentials')) {
+          errorMessage = 'Invalid email or password'
+        } else if (error.message?.includes('Email not confirmed')) {
+          errorMessage = 'Please check your email to confirm your account'
+        }
+        
+        setError(errorMessage)
         setIsLoading(false)
       } else {
         // Successfully signed in - close modal and reset form
@@ -49,7 +61,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         setIsLoading(false)
       }
     } catch (err) {
-      setError('An unexpected error occurred')
+      console.error('Sign in error:', err)
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      setError(`Failed to sign in: ${errorMessage}`)
       setIsLoading(false)
     }
   }
@@ -79,7 +93,19 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
       )
       
       if (error) {
-        setError(error.message)
+        // Show more specific error messages
+        let errorMessage = error.message || 'Failed to create account'
+        
+        // Handle common Supabase errors
+        if (error.message?.includes('fetch')) {
+          errorMessage = 'Network error: Please check your internet connection and ensure Supabase is configured correctly.'
+        } else if (error.message?.includes('already registered')) {
+          errorMessage = 'An account with this email already exists. Please sign in instead.'
+        } else if (error.message?.includes('Password')) {
+          errorMessage = error.message
+        }
+        
+        setError(errorMessage)
         setIsLoading(false)
       } else {
         setError(null)
@@ -88,7 +114,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         setIsLoading(false)
       }
     } catch (err) {
-      setError('An unexpected error occurred')
+      console.error('Sign up error:', err)
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      setError(`Failed to create account: ${errorMessage}`)
       setIsLoading(false)
     }
   }

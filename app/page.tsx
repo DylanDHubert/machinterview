@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { AuthModal } from "@/components/auth/auth-modal"
 import { UpgradeModal } from "@/components/subscription/upgrade-modal"
 import { InterviewNotification } from "@/components/interview-notification"
+import { supabase } from "@/lib/supabase"
 
 
 // Import Conversation type from the same place the hook is using it
@@ -413,6 +414,31 @@ Don't mention time limits to the candidate.
         // Reset AI speaking state
         setAiSpeaking(false);
 
+        // Save interview session with transcript
+        if (user && interviewMessages.length > 0 && jobData) {
+          try {
+            const { error: saveError } = await supabase
+              .from('interview_sessions')
+              .insert({
+                user_id: user.id,
+                job_title: jobData.jobTitle,
+                company_name: jobData.companyName,
+                job_description: jobData.jobDescription,
+                resume_data: resumeData,
+                transcript: interviewMessages, // Full conversation transcript
+                tokens_used: 0, // TODO: Track actual tokens used if needed
+              });
+
+            if (saveError) {
+              console.error('Error saving interview transcript:', saveError);
+            } else {
+              console.log('Interview transcript saved successfully');
+            }
+          } catch (error) {
+            console.error('Error saving interview session:', error);
+          }
+        }
+
         // Mark interview as completed (deduct 1 interview for free users)
         if (user) {
           await completeInterview();
@@ -503,12 +529,17 @@ Don't mention time limits to the candidate.
         body: formData
       })
       
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
       const result = await response.json()
       console.log("Upload API response:", result)
       
-      if (result.success && result.threadId && result.runId) {
-        console.log("PDF upload successful, starting polling...")
-        pollForResults(result.threadId, result.runId)
+      if (result.success && result.parsed) {
+        console.log("PDF processed successfully!")
+        setResumeData(result.parsed) // Set immediately, no polling needed
+        setIsProcessing(false)
       } else {
         console.error("PDF upload failed:", result.error)
         setProcessingError(result.error || "Upload failed")
@@ -530,55 +561,6 @@ Don't mention time limits to the candidate.
     // or store it for later use with the interviewer model
   }
   
-  // Poll for results with backoff strategy
-  const pollForResults = async (threadId: string, runId: string) => {
-    let pollCount = 0
-    const maxPolls = 30 // Maximum number of polling attempts
-    const baseInterval = 2000 // Start with 2 seconds
-    const maxInterval = 10000 // Max 10 seconds between polls
-    
-    const poll = async () => {
-      if (pollCount >= maxPolls) {
-        console.error("Polling timeout - max attempts reached")
-        setProcessingError("Processing timeout - please try again")
-        setIsProcessing(false)
-        return
-      }
-      
-      // Calculate backoff interval (increases with each poll)
-      const interval = Math.min(baseInterval * Math.pow(1.2, pollCount), maxInterval)
-      pollCount++
-      
-      try {
-        const response = await fetch(`/api/check-run?threadId=${threadId}&runId=${runId}`)
-        const result = await response.json()
-        console.log(`Poll ${pollCount} result:`, result)
-        
-        if (result.success) {
-          if (result.done) {
-            console.log("Processing complete!")
-            setResumeData(result.parsed)
-            setIsProcessing(false)
-            return
-          } else {
-            console.log(`Still processing (status: ${result.status}), polling again in ${interval}ms...`)
-            setTimeout(poll, interval)
-          }
-        } else {
-          console.error("Error in polling:", result.error)
-          setProcessingError(result.error || "Processing failed")
-          setIsProcessing(false)
-        }
-      } catch (error) {
-        console.error("Error polling for results:", error)
-        setProcessingError("Error checking processing status")
-        setIsProcessing(false)
-      }
-    }
-    
-    // Start polling
-    poll()
-  }
 
   // Handle get started button
   const handleGetStarted = () => {
