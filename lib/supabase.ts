@@ -18,9 +18,18 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Create client - will fail gracefully if env vars are missing
+// Configure with production-friendly settings
 export const supabase = createClient(
   supabaseUrl || '',
-  supabaseAnonKey || ''
+  supabaseAnonKey || '',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    },
+  }
 )
 
 // Database types - we'll expand these as we build the schema

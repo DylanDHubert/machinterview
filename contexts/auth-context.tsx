@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { User } from '@supabase/supabase-js'
 import { supabase, type User as DBUser } from '@/lib/supabase'
 
@@ -29,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [dbUser, setDbUser] = useState<DBUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const fetchingUserRef = useRef<string | null>(null) // Track which user is being fetched
 
   useEffect(() => {
     // Verify Supabase configuration
@@ -59,15 +60,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         console.log('Getting initial user...')
         
-        // Add timeout to auth.getUser() since it hangs in production
-        const authPromise = supabase.auth.getUser()
+        // Use getSession() instead of getUser() - it reads from localStorage first
+        // and doesn't require a network call, making it faster and more reliable
+        const sessionPromise = supabase.auth.getSession()
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('auth.getUser() timeout - Supabase auth hanging')), 3000)
+          setTimeout(() => reject(new Error('auth.getSession() timeout - Supabase auth hanging')), 5000)
         })
 
-        console.log('Executing auth.getUser() with timeout...')
-        const { data: { user } } = await Promise.race([authPromise, timeoutPromise]) as any
+        console.log('Executing auth.getSession() with timeout...')
+        const { data: { session }, error: sessionError } = await Promise.race([
+          sessionPromise.then(result => result),
+          timeoutPromise.then(() => ({ data: { session: null }, error: { message: 'timeout' } }))
+        ]) as any
         
+        if (sessionError) {
+          console.error('Session error:', sessionError)
+          setUser(null)
+          setDbUser(null)
+          return
+        }
+        
+        const user = session?.user || null
         console.log('Initial user result:', user ? `User found: ${user.id}` : 'No user')
         setUser(user)
         
@@ -79,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         console.error('Error getting initial user:', error)
-        // If auth.getUser() fails/times out, assume no user and continue
+        // If auth.getSession() fails/times out, assume no user and continue
         console.log('Assuming no user due to auth timeout, continuing with app load')
         setUser(null)
         setDbUser(null)
@@ -123,11 +136,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('Ensuring valid session...')
       
-      // Try to get the current session first
-      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      // Try to get the current session first with timeout
+      const sessionPromise = supabase.auth.getSession()
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('getSession timeout')), 5000)
+      })
       
-      if (!currentSession) {
-        console.log('No current session found')
+      const { data: { session: currentSession }, error: sessionError } = await Promise.race([
+        sessionPromise.then(result => result),
+        timeoutPromise.then(() => ({ data: { session: null }, error: { message: 'timeout' } }))
+      ]) as any
+      
+      if (sessionError || !currentSession) {
+        console.log('No current session found or timeout')
         return false
       }
       
@@ -138,7 +159,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (timeToExpiry < 60) {
         console.log('Session is close to expiring, refreshing...')
-        const { data: { session: refreshedSession }, error } = await supabase.auth.refreshSession()
+        
+        // Add timeout to refreshSession as well
+        const refreshPromise = supabase.auth.refreshSession()
+        const refreshTimeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('refreshSession timeout')), 5000)
+        })
+        
+        const { data: { session: refreshedSession }, error } = await Promise.race([
+          refreshPromise.then(result => result),
+          refreshTimeoutPromise.then(() => ({ data: { session: null }, error: { message: 'timeout' } }))
+        ]) as any
         
         if (error) {
           console.error('Failed to refresh session:', error)
@@ -163,7 +194,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const fetchDbUser = async (userId: string) => {
+    // Prevent concurrent fetches for the same user
+    if (fetchingUserRef.current === userId) {
+      console.log('fetchDbUser: Already fetching user, skipping duplicate request')
+      return
+    }
+    
     try {
+      fetchingUserRef.current = userId
       console.log('fetchDbUser: Starting fetch for user:', userId)
       
       // Ensure we have a valid session before making database queries
@@ -172,6 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!hasValidSession) {
         console.error('No valid session available - user needs to re-authenticate')
         setDbUser(null)
+        fetchingUserRef.current = null // Clear flag before returning
         return
       }
       
@@ -262,8 +301,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         console.log('fetchDbUser: No user found, creating new user')
-        // Get the current user's email from auth
-        const { data: { user: authUser } } = await supabase.auth.getUser()
+        // Get the current user's email from auth session (faster than getUser)
+        const { data: { session } } = await supabase.auth.getSession()
+        const authUser = session?.user
         
         console.log('Creating new user record for:', authUser?.email)
         
@@ -310,6 +350,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('2. RLS policies are preventing access')
         console.error('3. Database connection issues')
         console.error('Try refreshing the page or signing out and back in.')
+      }
+    } finally {
+      // Clear the fetching flag when done
+      if (fetchingUserRef.current === userId) {
+        fetchingUserRef.current = null
       }
     }
   }
