@@ -23,6 +23,7 @@ import { supabase } from "@/lib/supabase"
 // Import Conversation type from the same place the hook is using it
 import type { Conversation } from "@/lib/conversations"
 import { registerResetCallback } from "@/lib/reset-utils"
+import { countTotalQuestions } from "@/lib/question-detection"
 
 // Check if we're in development mode
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -97,12 +98,14 @@ const App: React.FC = () => {
   const [interviewStartTime, setInterviewStartTime] = useState<Date | null>(null)
   const [interviewDuration, setInterviewDuration] = useState(0)
   const [conversationCount, setConversationCount] = useState(0)
+  const [questionCount, setQuestionCount] = useState(0) // Track actual questions asked
   const interviewTimerRef = useRef<NodeJS.Timeout | null>(null)
   
   // Add conclusion tracking to prevent duplicate messages
   const [hasSentWrapUpMessage, setHasSentWrapUpMessage] = useState(false)
   const [hasSentConclusionMessage, setHasSentConclusionMessage] = useState(false)
   const autoEndTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const conversationRef = useRef<Conversation[]>([]) // Track latest conversation for conclusion checking
 
   // Add audio stream reference
   const audioStreamRef = useRef<MediaStream | null>(null)
@@ -152,16 +155,23 @@ const App: React.FC = () => {
   // Track conversation length and auto-conclude if needed
   useEffect(() => {
     if (conversation) {
+      // Update ref with latest conversation
+      conversationRef.current = conversation
+      
       const userMessages = conversation.filter(msg => msg.role === 'user' && msg.isFinal)
       const assistantMessages = conversation.filter(msg => msg.role === 'assistant' && msg.isFinal)
       
       setConversationCount(userMessages.length + assistantMessages.length)
       
+      // Count actual questions asked (not just messages)
+      const actualQuestionCount = countTotalQuestions(conversation)
+      setQuestionCount(actualQuestionCount)
+      
       // Auto-conclude interview after 10 questions or 30 minutes
-      const shouldAutoEnd = userMessages.length >= 10 || interviewDuration >= 1800 // 30 minutes
+      const shouldAutoEnd = actualQuestionCount >= 10 || interviewDuration >= 1800 // 30 minutes
       
       // Warning when approaching limits
-      const isApproachingEnd = userMessages.length >= 8 || interviewDuration >= 1500 // 25 minutes
+      const isApproachingEnd = actualQuestionCount >= 8 || interviewDuration >= 1500 // 25 minutes
       
       // Check if AI is currently speaking (has an incomplete assistant message)
       const isAiCurrentlySpeaking = conversation.some(
@@ -177,32 +187,57 @@ const App: React.FC = () => {
           
           const conclusionMessage = `
 INTERVIEW CONCLUSION INSTRUCTION:
-This interview has been running for ${Math.floor(interviewDuration / 60)} minutes with ${userMessages.length} questions asked.
+This practice interview has been running for ${Math.floor(interviewDuration / 60)} minutes with ${questionCount} questions asked.
 
-Please naturally conclude the interview by:
-1. Thanking the candidate for their time
-2. Briefly summarizing their key strengths you noticed
-3. Letting them know the next steps (e.g., "We'll be in touch soon within a few days")
-4. Ending with a professional closing like "Thank you again for your time today"
+Please naturally conclude this PRACTICE INTERVIEW by:
+1. Thanking them for participating in this practice session
+2. Briefly summarizing 2-3 key strengths you noticed in their responses
+3. Providing constructive feedback on areas they did well
+4. Ending with encouragement like "Great job on this practice interview. Keep practicing and you'll do well in your real interviews!"
 
-Keep your conclusion concise and professional. This should be your final message.
+IMPORTANT: This is a PRACTICE INTERVIEW, not a real interview. Do NOT say things like "We'll be in touch" or "We'll contact you" - those phrases are for real interviews. Instead, frame it as feedback from a practice session.
+
+Keep your conclusion concise, encouraging, and focused on helping them improve. This should be your final message.
 `
           
           // Send immediately since AI is not speaking
           sendSystemMessage(conclusionMessage)
           
           // Auto-end the interview after giving AI time to conclude
+          // We'll check periodically if AI has finished speaking
+          let checkCount = 0
+          const maxChecks = 15 // Maximum 15 checks (30 seconds total)
+          
+          const checkAndEnd = () => {
+            checkCount++
+            const currentConversation = conversationRef.current // Use ref to get latest conversation
+            const isStillSpeaking = currentConversation.some(
+              msg => msg.role === 'assistant' && !msg.isFinal
+            )
+            
+            if (!isStillSpeaking || checkCount >= maxChecks) {
+              // AI has finished speaking, or we've waited long enough
+              setTimeout(() => {
+                if (isSessionActive) {
+                  console.log("AI has concluded. Auto-ending interview.");
+                  handleStartStopClick()
+                }
+              }, 2000) // Give 2 seconds after AI finishes for natural pause
+            } else {
+              // AI is still speaking, check again in 2 seconds
+              setTimeout(checkAndEnd, 2000)
+            }
+          }
+          
           // Clear any existing timer first
           if (autoEndTimerRef.current) {
             clearTimeout(autoEndTimerRef.current)
           }
           
+          // Start checking after a short delay to let AI start responding
           autoEndTimerRef.current = setTimeout(() => {
-            if (isSessionActive) {
-              console.log("Auto-ending interview after conclusion");
-              handleStartStopClick()
-            }
-          }, 15000) // Give 15 seconds for AI to conclude gracefully
+            checkAndEnd()
+          }, 3000) // Wait 3 seconds for AI to start responding, then check periodically
         } else {
           console.log("Waiting for AI to finish speaking before sending conclusion...");
         }
@@ -215,10 +250,10 @@ Keep your conclusion concise and professional. This should be your final message
           
           const wrapUpMessage = `
 INTERVIEW WRAP-UP SIGNAL:
-You've asked ${userMessages.length} questions and the interview has been running for ${Math.floor(interviewDuration / 60)} minutes.
+You've asked ${questionCount} questions in this practice interview, which has been running for ${Math.floor(interviewDuration / 60)} minutes.
 
-Ask 1-2 more meaningful questions, then begin naturally wrapping up the interview.
-Don't mention time limits to the candidate.
+Ask 1-2 more meaningful questions, then begin naturally wrapping up this PRACTICE INTERVIEW.
+Don't mention time limits. Remember: this is a practice session, not a real interview.
 `
           
           sendSystemMessage(wrapUpMessage)
@@ -227,7 +262,7 @@ Don't mention time limits to the candidate.
         }
       }
     }
-  }, [conversation, interviewDuration, isSessionActive, sendSystemMessage, handleStartStopClick, hasSentWrapUpMessage, hasSentConclusionMessage])
+  }, [conversation, interviewDuration, isSessionActive, sendSystemMessage, handleStartStopClick, hasSentWrapUpMessage, hasSentConclusionMessage, questionCount])
 
   // Register global reset callback
   useEffect(() => {
@@ -244,6 +279,7 @@ Don't mention time limits to the candidate.
       setInterviewStartTime(null);
       setInterviewDuration(0);
       setConversationCount(0);
+      setQuestionCount(0);
       
       // Reset conclusion flags
       setHasSentWrapUpMessage(false);
@@ -497,6 +533,9 @@ Don't mention time limits to the candidate.
         setInterviewStartTime(new Date());
         setInterviewDuration(0);
         setConversationCount(0);
+        setQuestionCount(0);
+        setHasSentWrapUpMessage(false);
+        setHasSentConclusionMessage(false);
         
         console.log("Interview started: camera, voice recognition, and AI stream activated");
         console.log("AI received interview instructions at session initialization");
@@ -635,12 +674,12 @@ Don't mention time limits to the candidate.
                 jobData={jobData} 
                 resumeData={resumeData}
                 interviewDuration={interviewDuration}
-                questionCount={Math.floor(conversationCount / 2)}
+                questionCount={questionCount}
                 isInterviewActive={isSessionActive}
                 interviewPhase={
                   !isSessionActive && interviewDuration > 0 ? 'ended' :
-                  Math.floor(conversationCount / 2) >= 8 ? 'conclusion' :
-                  Math.floor(conversationCount / 2) >= 2 ? 'main' : 'introduction'
+                  questionCount >= 8 ? 'conclusion' :
+                  questionCount >= 2 ? 'main' : 'introduction'
                 }
               />
             </div>
@@ -662,15 +701,15 @@ Don't mention time limits to the candidate.
             <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-br from-white/80 to-blue-50/80 dark:from-gray-900/60 dark:to-indigo-950/60 backdrop-blur-sm rounded-t-lg">
               {/* Interview Notifications */}
               <InterviewNotification 
-                show={isSessionActive && Math.floor(conversationCount / 2) >= 8 && Math.floor(conversationCount / 2) < 10}
+                show={isSessionActive && questionCount >= 8 && questionCount < 10}
                 type="approaching-end"
-                questionCount={Math.floor(conversationCount / 2)}
+                questionCount={questionCount}
                 duration={interviewDuration}
               />
               <InterviewNotification 
-                show={isSessionActive && Math.floor(conversationCount / 2) >= 10}
+                show={isSessionActive && questionCount >= 10}
                 type="concluding"
-                questionCount={Math.floor(conversationCount / 2)}
+                questionCount={questionCount}
                 duration={interviewDuration}
               />
               
