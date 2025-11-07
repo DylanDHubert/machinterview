@@ -138,6 +138,7 @@ Instead, frame everything as practice feedback and encouragement.
 - End with clear next steps and appreciation
 
 Begin by introducing yourself warmly and asking your first question about their interest in the ${jobData.jobTitle} role. Remember: this is a practice interview to help them prepare, not a real hiring interview.
+`;
 }
 
 /**
@@ -210,6 +211,7 @@ CRITICAL: Do NOT say things like "We'll be in touch" or "We'll contact you" - th
 CRITICAL: Do NOT say things like "We'll be in touch" - this is practice, not a real interview.
 
 Begin by introducing yourself and asking about their career journey so far. Remember: this is a practice interview to help them prepare.
+`;
 }
 
 /**
@@ -285,6 +287,7 @@ CRITICAL: Do NOT say things like "We'll be in touch within a few days" - this is
 CRITICAL: Do NOT say things like "We'll be in touch" - this is practice, not a real interview.
 
 Begin by introducing yourself and asking why they're interested in the ${jobData.jobTitle} position at ${jobData.companyName}. Remember: this is a practice interview to help them prepare, not a real hiring interview.
+`;
 }
 
 /**
@@ -343,6 +346,7 @@ CRITICAL: Do NOT say things like "We'll be in touch" - this is practice, not a r
 CRITICAL: Do NOT say things like "We'll be in touch" - this is practice, not a real interview.
 
 Begin by introducing yourself and asking about their professional background. Remember: this is a practice interview to help them prepare.
+`;
 }
 
 /**
